@@ -6,7 +6,8 @@
  * - টাচ রে-কাস্টিং, ৩ডি প্রজেক্টাইল ট্র্যাজেক্টরি ও লাইন কলিশন
  */
 
-import * as THREE from './three.module.js';
+// Standalone Three.js UMD
+const THREE = window.THREE;
 
 class Ekkadokka3D {
   constructor(container) {

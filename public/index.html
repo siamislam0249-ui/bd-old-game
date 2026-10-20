@@ -152,12 +152,22 @@
 
 </div>
 
+<!-- Three.js 3D লাইব্রেরি (লোকাল UMD ও CDN ফলব্যাক) -->
+<script src="js/three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><' + '/script>');
+  }
+</script>
+
 <!-- অডিও ইঞ্জিন -->
 <script src="js/audio.js"></script>
 
-<!-- ৩ডি গেম অ্যাপ্লিকেশন ইনিট -->
-<script type="module">
-  import './js/game3d.js';
+<!-- ৩ডি গেম অ্যাপ্লিকেশন -->
+<script src="js/game3d.js"></script>
+
+<!-- UI কন্ট্রোলার স্ক্রিপ্ট -->
+<script>
 
   window.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('canvas-3d-container');
