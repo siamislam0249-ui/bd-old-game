@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>এক্কাদোক্কা (কুতকুত) 3D - ঐতিহ্যবাহী বাংলাদেশী ৩ডি গেম</title>
+  <link rel="stylesheet" href="style.css?v=3.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧱</text></svg>">
+</head>
+<body>
+
+<div id="game-app">
+  <!-- ৩ডি WebGL ক্যানভাস কন্টেইনার -->
+  <div id="canvas-3d-container"></div>
+
+  <!-- আধুনিক গ্লাস UI ওভারলে -->
+  <div class="ui-overlay">
+    <!-- শীর্ষ নেভবার ও কন্ট্রোল -->
+    <header class="top-section">
+      <div class="top-nav">
+        <div class="brand-badge">
+          <span>☀️</span>
+          <h1>এক্কাদোক্কা <span class="badge-3d">3D</span></h1>
+        </div>
+
+        <div class="nav-actions">
+          <button id="btn-sound" class="btn-circle" title="শব্দ">🔊</button>
+          <button id="btn-camera" class="btn-circle" title="ক্যামেরা অ্যাঙ্গেল পরিবর্তন">🎥</button>
+          <button id="btn-tutorial" class="btn-circle" title="খেলার নিয়মাবলী">📖</button>
+          <button id="btn-restart" class="btn-circle" title="নতুন খেলা">🔄</button>
+          <button id="btn-fullscreen" class="btn-circle" title="ফুলস্ক্রিন">⛶</button>
+        </div>
+      </div>
+
+      <!-- স্লিম HUD স্কোর রিবন -->
+      <div class="hud-ribbon">
+        <div id="p1-card" class="hud-player active">
+          <div class="hud-dot dot-blue"></div>
+          <span id="p1-name">আপনি</span>: 
+          <span id="p1-score" style="color:#d84315;">০ পঃ</span>
+        </div>
+
+        <div id="turn-badge" class="turn-pill-3d">আপনার পালা</div>
+
+        <div id="p2-card" class="hud-player">
+          <div class="hud-dot dot-orange"></div>
+          <span id="p2-name">বল্টু</span>: 
+          <span id="p2-score" style="color:#d84315;">০ পঃ</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- নিচের স্ট্যাটাস ও বড় টাচ বাটনসমূহ -->
+    <footer class="bottom-panel">
+      <div class="status-bubble">
+        <div id="status-msg" class="status-msg">চাড়াটি টেনে লক্ষ্য ঘরে নিক্ষেপ করুন</div>
+        <div id="status-sub" class="status-sub">দাগে চাড়া বা পা লাগানো যাবে না</div>
+      </div>
+
+      <div class="action-bar-3d">
+        <button id="action-throw-btn" class="btn-glow">
+          <span>🎯</span> চাড়া নিক্ষেপ
+        </button>
+        <button id="action-hop-btn" class="btn-glow btn-hop" style="display: none;">
+          <span>🦵</span> সামনের ঘরে লাফাও
+        </button>
+        <button id="action-kick-btn" class="btn-glow btn-kick" style="display: none;">
+          <span>🦶</span> চাড়া বাইরে পাঠাও
+        </button>
+      </div>
+
+      <div class="view-tip">💡 স্ক্রিনে আঙুল রেখে নিশানা করুন ও ছেড়ে দিন • 🎥 চাপলে টপ-ভিউ হবে</div>
+    </footer>
+  </div>
+
+  <!-- মোড বাছাই মডাল (শুরুর পর্দা) -->
+  <div id="mode-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <h2>🇧🇩 এক্কাদোক্কা 3D 🇧🇩</h2>
+      <p style="font-size:0.9rem; color:#5d4037; margin-bottom:12px;">
+        বাংলার ঐতিহ্যবাহী মাটির উঠোনের খেলা আধুনিক ৩ডি রূপান্তরের সাথে!
+      </p>
+
+      <button id="mode-ai-btn" class="btn-mode-3d">
+        <span>👤 একক খেলোয়াড় (বনাম কম্পিউটার বল্টু)</span>
+        <span>▶</span>
+      </button>
+      <button id="mode-pvp-btn" class="btn-mode-3d">
+        <span>👥 দুই খেলোয়াড় (পাশাপাশি ২ জন)</span>
+        <span>▶</span>
+      </button>
+
+      <button id="btn-open-rules" class="btn-primary-3d" style="background:#0288d1; width:100%; margin-top:8px;">
+        📖 খেলার ৫টি সচিত্র নিয়ম দেখুন
+      </button>
+    </div>
+  </div>
+
+  <!-- টিউটোরিয়াল মডাল (রেফারেন্স ছবির ৫টি নিয়ম হুবহু) -->
+  <div id="rules-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+      <h2>📜 এক্কাদোক্কা খেলার ৫টি নিয়ম</h2>
+      
+      <div class="rules-grid-3d">
+        <!-- ১ নং নিয়ম (গোলাপী) -->
+        <div class="rule-row r-pink">
+          <div class="rule-badge">১</div>
+          <div><strong>চাড়া প্রথম ঘরে ফেলো:</strong> নির্দিষ্ট লক্ষ্য ঘরে (১-৬) চাড়া নিক্ষেপ করুন।</div>
+        </div>
+
+        <!-- ২ নং নিয়ম (নীল) -->
+        <div class="rule-row r-blue">
+          <div class="rule-badge">২</div>
+          <div><strong>এক পায়ে লাফিয়ে ঘর পার হও:</strong> এক পায়ে ল্যাংচা দিয়ে সংলগ্ন ঘরগুলো পার হতে হবে।</div>
+        </div>
+
+        <!-- ৩ নং নিয়ম (সবুজ) -->
+        <div class="rule-row r-green">
+          <div class="rule-badge">৩</div>
+          <div><strong>দাগে পা বা চাড়া লাগানো যাবে না:</strong> খড়িমাটির কোনো দাগ স্পর্শ করলেই ফাউল!</div>
+        </div>
+
+        <!-- ৪ নং নিয়ম (বেগুনী) -->
+        <div class="rule-row r-purple">
+          <div class="rule-badge">৪</div>
+          <div><strong>সব ঘর শেষ করে চাড়া বাইরে আনো:</strong> চাড়ার কাছে পৌঁছে ট্যাপ করে চাড়া কোর্টের বাইরে পাঠাও।</div>
+        </div>
+
+        <!-- ৫ নং নিয়ম (কমলা) -->
+        <div class="rule-row r-orange">
+          <div class="rule-badge">৫</div>
+          <div><strong>দাগে পা লাগলে বা ভুল ঘরে চাড়া গেলে পালা শেষ:</strong> ফাউল হলে পালা অপরজনের কাছে যাবে।</div>
+        </div>
+      </div>
+
+      <button id="btn-close-rules" class="btn-primary-3d" style="width: 100%;">ঠিক আছে, বুঝেছি!</button>
+    </div>
+  </div>
+
+  <!-- ম্যাচ চ্যাম্পিয়ন মডাল -->
+  <div id="winner-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <h2 id="winner-title">🏆 বিজয়ী! 🏆</h2>
+      <p id="winner-desc">অভিনন্দন! আপনি এক্কাদোক্কার সব ঘর সফলভাবে জয় করেছেন!</p>
+      <div style="font-size: 3rem; margin: 12px 0;">🎉 🎊 🥇</div>
+      <button id="btn-winner-restart" class="btn-primary-3d">নতুন ম্যাচ খেলুন</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- অডিও ইঞ্জিন -->
+<script src="js/audio.js"></script>
+
+<!-- ৩ডি গেম অ্যাপ্লিকেশন ইনিট -->
+<script type="module">
+  import './js/game3d.js';
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('canvas-3d-container');
+    const game = new window.Ekkadokka3D(container);
+
+    // সাউন্ড টগল
+    const soundBtn = document.getElementById('btn-sound');
+    soundBtn.addEventListener('click', () => {
+      const isMuted = window.soundEngine.toggleMute();
+      soundBtn.innerText = isMuted ? '🔇' : '🔊';
+      if (!isMuted) window.soundEngine.playClick();
+    });
+
+    // ক্যামেরা ভিউ টগল (আইসোমেট্রিক ৩ডি / টপ-ডাউন)
+    document.getElementById('btn-camera').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      game.toggleCamera();
+    });
+
+    // মোড বাছাই বাটন
+    const modeModal = document.getElementById('mode-modal');
+    document.getElementById('mode-ai-btn').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      modeModal.style.display = 'none';
+      game.startNewGame('p_vs_ai');
+    });
+
+    document.getElementById('mode-pvp-btn').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      modeModal.style.display = 'none';
+      game.startNewGame('p_vs_p');
+    });
+
+    // রিস্টার্ট
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      modeModal.style.display = 'flex';
+    });
+
+    document.getElementById('btn-winner-restart').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      document.getElementById('winner-modal').style.display = 'none';
+      modeModal.style.display = 'flex';
+    });
+
+    // টিউটোরিয়াল
+    const rulesModal = document.getElementById('rules-modal');
+    document.getElementById('btn-tutorial').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      rulesModal.style.display = 'flex';
+    });
+    document.getElementById('btn-open-rules').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      rulesModal.style.display = 'flex';
+    });
+    document.getElementById('btn-close-rules').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      rulesModal.style.display = 'none';
+    });
+
+    // ফুলস্ক্রিন
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    });
+
+    // অ্যাকশন বাটনসমূহ
+    document.getElementById('action-throw-btn').addEventListener('click', () => {
+      const tBox = game.boxes[game.playerTargets[game.activePlayerIdx]];
+      game.executeCharaThrow3D(tBox.center.x, tBox.center.z);
+    });
+
+    document.getElementById('action-kick-btn').addEventListener('click', () => {
+      game.executeCharaKick3D();
+    });
+
+    document.getElementById('action-hop-btn').addEventListener('click', () => {
+      const valid = game.getValidNextMoves();
+      if (valid.length > 0) {
+        const nextBox = valid[0];
+        if (nextBox === 0) {
+          game.hopPlayerTo3D(0, game.baselineZ, 0, () => {
+            game.checkHoppingMilestone();
+          });
+        } else {
+          const b = game.boxes[nextBox];
+          game.hopPlayerTo3D(b.center.x, b.center.z, nextBox, () => {
+            game.checkHoppingMilestone();
+          });
+        }
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

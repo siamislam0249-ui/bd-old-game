@@ -1,0 +1,29 @@
+{
+  "name": "bd-old-game",
+  "version": "2.0.0",
+  "description": "Traditional Bangladeshi 3D Ekkadokka (Kutkut) Game - Node.js & Three.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "three": "^0.170.0"
+  },
+  "keywords": [
+    "game",
+    "ekkadokka",
+    "kutkut",
+    "bangladesh",
+    "threejs",
+    "3d",
+    "webgl",
+    "nodejs"
+  ],
+  "author": "siam",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
