@@ -39,6 +39,7 @@ class Ekkadokka3D {
     // 'HOPPING', 'KICK_CHARA', 'RETURN_HOP', 'FOUL_PAUSE', 'ROUND_SUCCESS', 'GAME_OVER'
     this.state = 'MENU';
     this.cameraMode = 'iso'; // 'iso' or 'top'
+    this.foulTimeout = null;
 
     this.clock = new THREE.Clock();
     this.initScene();
@@ -562,6 +563,7 @@ class Ekkadokka3D {
   // ইনপুট হ্যান্ডলিং
   initEvents() {
     const dom = this.renderer.domElement;
+    dom.style.touchAction = 'none';
 
     const getRayGroundPoint = (clientX, clientY) => {
       const rect = dom.getBoundingClientRect();
@@ -574,7 +576,7 @@ class Ekkadokka3D {
     };
 
     const onPointerDown = (clientX, clientY) => {
-      if (this.state === 'PAUSED' || this.isAI[this.activePlayerIdx]) return;
+      if (this.state === 'PAUSED' || this.state === 'FOUL_PAUSE' || this.isAI[this.activePlayerIdx]) return;
       if (this.mode === 'online' && !this.isMyTurn()) return;
       window.soundEngine.init();
 
@@ -607,17 +609,34 @@ class Ekkadokka3D {
     };
 
     const onPointerUp = () => {
-      if (this.mode === 'online' && !this.isMyTurn()) return;
+      if (this.mode === 'online' && !this.isMyTurn()) {
+        this.isDragging = false;
+        if (this.trajectoryLine) this.trajectoryLine.visible = false;
+        if (this.targetRing) this.targetRing.visible = false;
+        return;
+      }
       if (this.isDragging && this.state === 'THROW_AIM') {
         this.isDragging = false;
-        this.trajectoryLine.visible = false;
+        if (this.trajectoryLine) this.trajectoryLine.visible = false;
+        if (this.targetRing) this.targetRing.visible = false;
         this.executeCharaThrow3D(this.dragTargetPoint.x, this.dragTargetPoint.z);
+      } else {
+        this.isDragging = false;
+        if (this.trajectoryLine) this.trajectoryLine.visible = false;
+        if (this.targetRing) this.targetRing.visible = false;
       }
+    };
+
+    const onPointerCancel = () => {
+      this.isDragging = false;
+      if (this.trajectoryLine) this.trajectoryLine.visible = false;
+      if (this.targetRing) this.targetRing.visible = false;
     };
 
     dom.addEventListener('pointerdown', (e) => onPointerDown(e.clientX, e.clientY));
     window.addEventListener('pointermove', (e) => onPointerMove(e.clientX, e.clientY));
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
 
     window.addEventListener('resize', () => {
       this.width = this.container.clientWidth || window.innerWidth;
@@ -672,12 +691,16 @@ class Ekkadokka3D {
 
   // ৩ডি চাড়া নিক্ষেপ সম্পাদন
   executeCharaThrow3D(destX, destZ, isRemote = false) {
+    if (this.state !== 'THROW_AIM' && !isRemote) return;
+    if (this.mode === 'online' && !isRemote && !this.isMyTurn()) return;
+
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
       this.onOnlineAction({ type: 'THROW', x: destX, z: destZ });
     }
     this.state = 'THROW_FLIGHT';
-    this.targetRing.visible = false;
-    this.trajectoryLine.visible = false;
+    this.isDragging = false;
+    if (this.targetRing) this.targetRing.visible = false;
+    if (this.trajectoryLine) this.trajectoryLine.visible = false;
     window.soundEngine.playThrow();
 
     this.charaState.isAirborne = true;
@@ -691,6 +714,11 @@ class Ekkadokka3D {
 
   // নিক্ষেপ শেষ হলে ৩ডি কলিশন ও নিয়ম যাচাই
   validateThrowResult3D() {
+    // অনলাইন মোডে শুধুমাত্র সক্রিয় নিক্ষেপকারী খেলোয়াড় সিদ্ধান্ত নিবে
+    if (this.mode === 'online' && !this.isMyTurn()) {
+      return;
+    }
+
     this.state = 'VALIDATE_THROW';
     window.soundEngine.playCharaLand();
 
@@ -726,6 +754,15 @@ class Ekkadokka3D {
     const pName = this.playerNames[this.activePlayerIdx];
     this.setMessage('সাবাশ! চাড়া সঠিক ঘরে পড়েছে!', 'এবার এক পায়ে লাফিয়ে চলুন (দাগে পা দেওয়া যাবে না)');
     this.updateHUD();
+
+    if (this.mode === 'online' && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({
+        type: 'THROW_LANDED',
+        boxNum: landedBox,
+        x: cx,
+        z: cz
+      });
+    }
 
     if (this.isAI[this.activePlayerIdx]) {
       this.scheduleAIHop3D();
@@ -946,6 +983,8 @@ class Ekkadokka3D {
   }
 
   completeRoundSuccess(isRemote = false) {
+    if (this.mode === 'online' && !isRemote && !this.isMyTurn()) return;
+
     this.state = 'ROUND_SUCCESS';
     window.soundEngine.playSuccess();
 
@@ -982,12 +1021,34 @@ class Ekkadokka3D {
     if (this.currentStreak >= this.maxStreak) {
       setTimeout(() => {
         this.setMessage(`চমৎকার! একটানা ৫টি চাল পূর্ণ হয়েছে!`, 'রোলিং নিয়ম অনুযায়ী এবার প্রতিপক্ষের পালা...');
-        setTimeout(() => this.switchTurn(), 2000);
+        setTimeout(() => {
+          if (this.mode === 'online') {
+            this.switchTurnOnline();
+          } else {
+            this.switchTurn();
+          }
+        }, 2000);
       }, 1200);
       return;
     }
 
-    setTimeout(() => this.startTurn(), 2200);
+    // চাল বাকি থাকলে পরবর্তী চাল শুরু
+    if (this.mode === 'online') {
+      setTimeout(() => {
+        this.startTurn();
+        if (this.onOnlineAction) {
+          this.onOnlineAction({
+            type: 'START_NEXT_ROUND',
+            activeIdx: this.activePlayerIdx,
+            streak: this.currentStreak,
+            scores: this.scores,
+            targets: this.playerTargets
+          });
+        }
+      }, 2200);
+    } else {
+      setTimeout(() => this.startTurn(), 2200);
+    }
   }
 
   triggerMatchWin(isRemote = false) {
@@ -1009,37 +1070,97 @@ class Ekkadokka3D {
   }
 
   triggerFoul(reason, isRemote = false) {
-    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
-      this.onOnlineAction({ type: 'FOUL', reason });
+    // অনলাইন মোডে শুধুমাত্র সক্রিয় খেলোয়াড় লোকাল ফাউল শুরু করতে পারে
+    if (this.mode === 'online' && !isRemote && !this.isMyTurn()) {
+      return;
     }
+
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'FOUL', reason: reason });
+    }
+
     this.state = 'FOUL_PAUSE';
     this.currentStreak = 0; // ফাউল হলে স্ট্রিক ০ হয়
+    this.isDragging = false;
+    if (this.targetRing) this.targetRing.visible = false;
+    if (this.trajectoryLine) this.trajectoryLine.visible = false;
     window.soundEngine.playFoul();
 
     this.setMessage(`ফাউল! ${reason}`, 'পালা পরিবর্তন হচ্ছে...');
     this.updateHUD();
 
-    setTimeout(() => this.switchTurn(), 2200);
+    if (this.foulTimeout) {
+      clearTimeout(this.foulTimeout);
+      this.foulTimeout = null;
+    }
+
+    if (this.mode === 'online') {
+      if (this.isMyTurn()) {
+        // ফাউলকারী খেলোয়াড় নির্ধারিত বিরতির পর পালা পরিবর্তন করবে ও রিমোটকে জানাবে
+        this.foulTimeout = setTimeout(() => {
+          this.switchTurnOnline();
+        }, 2200);
+      } else {
+        // রিমোট খেলোয়াড় ফাউল মেসেজ পেলে সক্রিয় খেলোয়াড়ের TURN_SWITCH বার্তার জন্য অপেক্ষা করবে
+        // প্যাকেট ড্রপ হলে সেফটি ফলব্যাক টাইমার (৩৮০০মি.সে.)
+        this.foulTimeout = setTimeout(() => {
+          if (this.state === 'FOUL_PAUSE') {
+            this.activePlayerIdx = this.myPlayerIdx;
+            this.currentStreak = 0;
+            this.startTurn();
+          }
+        }, 3800);
+      }
+    } else {
+      // অফলাইন লোকাল মোড (বনাম বল্টু বা পাশাপাশি ২ জন)
+      this.foulTimeout = setTimeout(() => this.switchTurn(), 2200);
+    }
   }
 
+  // অফলাইন / লোকাল মোডে পালা পরিবর্তন
   switchTurn() {
     this.activePlayerIdx = this.activePlayerIdx === 0 ? 1 : 0;
-    this.currentStreak = 0; // নতুন খেলোয়াড়ের চাল রিসেট
-    if (this.mode === 'online' && this.onOnlineAction && this.isMyTurn()) {
+    this.currentStreak = 0;
+    this.startTurn();
+  }
+
+  // অনলাইন মোডে একমাত্র সক্রিয় পক্ষ পালা পরিবর্তন করে ব্রডকাস্ট করবে
+  switchTurnOnline() {
+    const nextIdx = this.activePlayerIdx === 0 ? 1 : 0;
+    this.activePlayerIdx = nextIdx;
+    this.currentStreak = 0;
+
+    if (this.onOnlineAction) {
       this.onOnlineAction({
         type: 'TURN_SWITCH',
-        activeIdx: this.activePlayerIdx,
+        activeIdx: nextIdx,
         scores: this.scores,
         targets: this.playerTargets,
         streak: 0
       });
     }
+
     this.startTurn();
   }
 
   startTurn() {
+    if (this.foulTimeout) {
+      clearTimeout(this.foulTimeout);
+      this.foulTimeout = null;
+    }
+
     this.state = 'THROW_AIM';
     this.playerCurrentBox = 0;
+    this.isDragging = false;
+    this.charaState.isAirborne = false;
+    this.charaState.isSliding = false;
+    this.charaState.flightProgress = 0;
+    this.hopState.isHopping = false;
+    this.hopState.progress = 0;
+    this.onHopComplete = null;
+    if (this.targetRing) this.targetRing.visible = false;
+    if (this.trajectoryLine) this.trajectoryLine.visible = false;
+
     const isAiTurn = this.isAI[this.activePlayerIdx];
 
     // পোশাক ও জেন্ডার মডেল আপডেট
@@ -1059,12 +1180,12 @@ class Ekkadokka3D {
 
     if (this.mode === 'online') {
       if (this.isMyTurn()) {
-        this.setMessage(`আপনার পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+        this.setMessage(`আপনার পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন বা বাটন চাপুন');
       } else {
         this.setMessage(`বন্ধুর পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, 'বন্ধুর নিক্ষেপ দেখার অপেক্ষায়...');
       }
     } else {
-      this.setMessage(`${pName}-এর পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+      this.setMessage(`${pName}-এর পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন বা বাটন চাপুন');
     }
     this.updateHUD();
 
@@ -1104,9 +1225,21 @@ class Ekkadokka3D {
         break;
 
       case 'THROW':
-        this.targetRing.visible = false;
-        this.trajectoryLine.visible = false;
+        if (this.targetRing) this.targetRing.visible = false;
+        if (this.trajectoryLine) this.trajectoryLine.visible = false;
         this.executeCharaThrow3D(action.x, action.z, true);
+        break;
+
+      case 'THROW_LANDED':
+        this.charaState.isAirborne = false;
+        this.charaState.boxNum = action.boxNum;
+        if (typeof action.x === 'number' && typeof action.z === 'number') {
+          this.charaGroup.position.set(action.x, 0.06, action.z);
+        }
+        window.soundEngine.playSuccess();
+        this.state = 'HOPPING';
+        this.setMessage('বন্ধুর চাড়া সঠিক ঘরে পড়েছে!', 'বন্ধুর লাফ দেখার অপেক্ষায়...');
+        this.updateHUD();
         break;
 
       case 'HOP':
@@ -1124,10 +1257,26 @@ class Ekkadokka3D {
         break;
 
       case 'TURN_SWITCH':
+        if (this.foulTimeout) {
+          clearTimeout(this.foulTimeout);
+          this.foulTimeout = null;
+        }
         this.activePlayerIdx = action.activeIdx;
         this.currentStreak = action.streak || 0;
         if (action.scores) this.scores = action.scores;
         if (action.targets) this.playerTargets = action.targets;
+        this.startTurn();
+        break;
+
+      case 'START_NEXT_ROUND':
+        if (this.foulTimeout) {
+          clearTimeout(this.foulTimeout);
+          this.foulTimeout = null;
+        }
+        if (action.scores) this.scores = action.scores;
+        if (action.targets) this.playerTargets = action.targets;
+        this.currentStreak = action.streak || 0;
+        this.activePlayerIdx = action.activeIdx;
         this.startTurn();
         break;
 
@@ -1137,12 +1286,6 @@ class Ekkadokka3D {
         this.currentStreak = action.streak || 0;
         window.soundEngine.playRoundWin();
         this.updateHUD();
-        if (this.currentStreak >= this.maxStreak) {
-          this.setMessage(`চমৎকার! একটানা ৫টি চাল পূর্ণ হয়েছে!`, 'রোলিং নিয়ম অনুযায়ী এবার প্রতিপক্ষের পালা...');
-          setTimeout(() => this.switchTurn(), 2000);
-        } else {
-          setTimeout(() => this.startTurn(), 2000);
-        }
         break;
 
       case 'MATCH_WIN':
@@ -1231,9 +1374,20 @@ class Ekkadokka3D {
     if (p1Score) p1Score.innerText = `${this.scores[0]}/${this.targetScore} পঃ (ঘর ${this.boxes[this.playerTargets[0]]?.bn || '১'})`;
     if (p2Score) p2Score.innerText = `${this.scores[1]}/${this.targetScore} পঃ (ঘর ${this.boxes[this.playerTargets[1]]?.bn || '১'})`;
 
+    // সক্রিয় খেলোয়াড়ের কার্ড হাইলাইট
+    const p1Card = document.getElementById('p1-card');
+    const p2Card = document.getElementById('p2-card');
+    if (p1Card) p1Card.classList.toggle('active', this.activePlayerIdx === 0);
+    if (p2Card) p2Card.classList.toggle('active', this.activePlayerIdx === 1);
+
     if (turnBadge) {
       const activeStreak = `চাল ${Math.min(this.maxStreak, this.currentStreak + 1)}/৫`;
-      turnBadge.innerText = `${this.playerNames[this.activePlayerIdx]}-এর পালা (${activeStreak})`;
+      if (this.mode === 'online') {
+        const who = this.isMyTurn() ? 'আপনার পালা' : 'বন্ধুর পালা';
+        turnBadge.innerText = `🟢 ${who} (${activeStreak})`;
+      } else {
+        turnBadge.innerText = `${this.playerNames[this.activePlayerIdx]}-এর পালা (${activeStreak})`;
+      }
     }
 
     const throwBtn = document.getElementById('action-throw-btn');

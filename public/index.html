@@ -415,15 +415,26 @@
 
     // অ্যাকশন বাটনসমূহ
     document.getElementById('action-throw-btn').addEventListener('click', () => {
-      const tBox = game.boxes[game.playerTargets[game.activePlayerIdx]];
-      game.executeCharaThrow3D(tBox.center.x, tBox.center.z);
+      if (game.state !== 'THROW_AIM') return;
+      if (game.mode === 'online' && !game.isMyTurn()) return;
+      const targetBox = game.playerTargets[game.activePlayerIdx] || 1;
+      const tBox = game.boxes[targetBox];
+      if (tBox && tBox.center) {
+        game.executeCharaThrow3D(tBox.center.x, tBox.center.z);
+      }
     });
 
     document.getElementById('action-kick-btn').addEventListener('click', () => {
+      if (game.state !== 'HOPPING') return;
+      if (game.mode === 'online' && !game.isMyTurn()) return;
       game.executeCharaKick3D();
     });
 
     document.getElementById('action-hop-btn').addEventListener('click', () => {
+      if (game.state !== 'HOPPING' && game.state !== 'RETURN_HOP') return;
+      if (game.mode === 'online' && !game.isMyTurn()) return;
+      if (game.hopState.isHopping) return;
+
       const valid = game.getValidNextMoves();
       if (valid.length > 0) {
         const nextBox = valid[0];
