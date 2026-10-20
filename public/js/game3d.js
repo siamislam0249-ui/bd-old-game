@@ -23,6 +23,13 @@ class Ekkadokka3D {
     this.playerNames = ['আপনি', 'বল্টু'];
     this.isAI = [false, true];
 
+    // চরিত্র ও অনলাইন মাল্টিপ্লেয়ার স্টেট
+    this.playerGenders = ['male', 'female']; // P1 & P2 জেন্ডার ('male' বা 'female')
+    this.onlineRole = null; // null, 'host', 'guest'
+    this.myPlayerIdx = 0;
+    this.onOnlineAction = null;
+    this.lastAimSent = 0;
+
     // স্টেটসমূহ: 'MENU', 'THROW_AIM', 'THROW_FLIGHT', 'VALIDATE_THROW',
     // 'HOPPING', 'KICK_CHARA', 'RETURN_HOP', 'FOUL_PAUSE', 'ROUND_SUCCESS', 'GAME_OVER'
     this.state = 'MENU';
@@ -335,76 +342,14 @@ class Ekkadokka3D {
     };
   }
 
-  // ৩ডি গ্রামীণ ছেলে কার্টুন মডেল (এক পায়ে লাফানো ভঙ্গি)
+  // ৩ডি চরিত্র ইনিট (ছেলে ও মেয়ে উভয় মডেল সমর্থন করে)
   init3DCharacter() {
     this.playerGroup = new THREE.Group();
+    this.charVisualGroup = new THREE.Group();
+    this.playerGroup.add(this.charVisualGroup);
 
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xdf9a68, roughness: 0.8 });
-    this.shirtMatP1 = new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.6 });
-    this.shirtMatAI = new THREE.MeshStandardMaterial({ color: 0xe65100, roughness: 0.6 });
-    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1a237e, roughness: 0.7 });
-    const hairMat = new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.9 });
-
-    // ১. মাথা
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 16), skinMat);
-    head.position.y = 2.1;
-    head.castShadow = true;
-    this.playerGroup.add(head);
-
-    // চুল
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), hairMat);
-    hair.position.set(0, 2.18, -0.05);
-    hair.scale.set(1, 0.95, 1);
-    this.playerGroup.add(hair);
-
-    // ২. জামা / বুক
-    this.shirtMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.75, 12), this.shirtMatP1);
-    this.shirtMesh.position.y = 1.45;
-    this.shirtMesh.castShadow = true;
-    this.playerGroup.add(this.shirtMesh);
-
-    // ৩. হাফপ্যান্ট
-    const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.45, 12), pantsMat);
-    pants.position.y = 0.98;
-    pants.castShadow = true;
-    this.playerGroup.add(pants);
-
-    // ৪. বাম পা (ল্যাংচা দিয়ে দাঁড়ানোর পা - সোজা)
-    const legStand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.75, 8), skinMat);
-    legStand.position.set(-0.16, 0.42, 0);
-    legStand.castShadow = true;
-    this.playerGroup.add(legStand);
-
-    const footStand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), skinMat);
-    footStand.position.set(-0.16, 0.05, 0.08);
-    footStand.castShadow = true;
-    this.playerGroup.add(footStand);
-
-    // ৫. ডান পা (হাঁটু মুড়ে পিছনে ভাঁজ করা - এক পায়ে লাফানোর স্টাইল)
-    const thighBent = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.45, 8), skinMat);
-    thighBent.position.set(0.2, 0.62, -0.15);
-    thighBent.rotation.x = Math.PI / 3.5; // পিছনে বাঁকা
-    thighBent.castShadow = true;
-    this.playerGroup.add(thighBent);
-
-    const calfBent = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.45, 8), skinMat);
-    calfBent.position.set(0.2, 0.35, -0.32);
-    calfBent.rotation.x = -Math.PI / 4;
-    calfBent.castShadow = true;
-    this.playerGroup.add(calfBent);
-
-    // ৬. দুই হাত (ভারসাম্য রক্ষার জন্য প্রসারিত)
-    this.armL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.65, 8), skinMat);
-    this.armL.position.set(-0.55, 1.42, 0);
-    this.armL.rotation.z = Math.PI / 3.8;
-    this.armL.castShadow = true;
-    this.playerGroup.add(this.armL);
-
-    this.armR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.65, 8), skinMat);
-    this.armR.position.set(0.55, 1.42, 0);
-    this.armR.rotation.z = -Math.PI / 3.8;
-    this.armR.castShadow = true;
-    this.playerGroup.add(this.armR);
+    // প্রাথমিক চরিত্র বিল্ড
+    this.buildCharacterVisuals(this.playerGenders[this.activePlayerIdx] || 'male', this.activePlayerIdx);
 
     // স্কেল ও প্রারম্ভিক অবস্থান
     this.playerGroup.scale.set(0.9, 0.9, 0.9);
@@ -420,6 +365,177 @@ class Ekkadokka3D {
       target: new THREE.Vector3(),
       targetBox: 0
     };
+  }
+
+  // ৩ডি ছেলে ও মেয়ে চরিত্র নির্মাণ
+  buildCharacterVisuals(gender, playerIdx) {
+    while (this.charVisualGroup.children.length > 0) {
+      const child = this.charVisualGroup.children[0];
+      this.charVisualGroup.remove(child);
+      if (child.geometry) child.geometry.dispose();
+    }
+
+    const isP1 = (playerIdx === 0);
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xdf9a68, roughness: 0.8 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, roughness: 0.9 });
+    const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xff1744, roughness: 0.5 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xffb300, metalness: 0.3, roughness: 0.4 });
+
+    const primaryColor = isP1 ? 0x1976d2 : 0xe65100;
+    const femaleColor = isP1 ? 0xe91e63 : 0x8e24aa;
+
+    // ১. মাথা
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 16), skinMat);
+    head.position.y = 2.1;
+    head.castShadow = true;
+    this.charVisualGroup.add(head);
+
+    if (gender === 'female') {
+      // --- ঐতিহ্যবাহী গ্রামীণ মেয়ে মডেল (বেণী, কপালে লাল টিপ, রঙিন ফ্রক ও কাঁচের চুড়ি) ---
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), hairMat);
+      hair.position.set(0, 2.18, -0.05);
+      hair.scale.set(1.02, 0.98, 1.05);
+      this.charVisualGroup.add(hair);
+
+      // কপালে সুন্দর লাল টিপ
+      const bindi = new THREE.Mesh(
+        new THREE.CircleGeometry(0.045, 16),
+        new THREE.MeshBasicMaterial({ color: 0xd50000, side: THREE.DoubleSide })
+      );
+      bindi.position.set(0, 2.15, 0.365);
+      this.charVisualGroup.add(bindi);
+
+      // দুই পাশে ফিতা বাঁধা সুদৃশ্য বেণী
+      [-0.34, 0.34].forEach(xOffset => {
+        const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.03, 8, 16), ribbonMat);
+        ribbon.rotation.x = Math.PI / 2;
+        ribbon.position.set(xOffset, 2.05, 0.02);
+        this.charVisualGroup.add(ribbon);
+
+        for (let b = 0; b < 3; b++) {
+          const bBall = new THREE.Mesh(new THREE.SphereGeometry(0.08 - b * 0.012, 12, 12), hairMat);
+          bBall.position.set(xOffset * 1.05, 1.95 - b * 0.12, 0.02 - b * 0.02);
+          bBall.castShadow = true;
+          this.charVisualGroup.add(bBall);
+        }
+      });
+
+      // ফ্রকের উপরিভাগ (Bodice)
+      const bodiceMat = new THREE.MeshStandardMaterial({ color: femaleColor, roughness: 0.6 });
+      this.shirtMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.62, 16), bodiceMat);
+      this.shirtMesh.position.y = 1.5;
+      this.shirtMesh.castShadow = true;
+      this.charVisualGroup.add(this.shirtMesh);
+
+      // চমৎকার ঘেরওয়ালা ফ্রক (Flared Frock)
+      const frockMat = new THREE.MeshStandardMaterial({ color: femaleColor, roughness: 0.6 });
+      const frock = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.66, 0.72, 16), frockMat);
+      frock.position.y = 0.95;
+      frock.castShadow = true;
+      this.charVisualGroup.add(frock);
+
+      // ফ্রকের নিচের সোনালী লেস/পাড়
+      const hem = new THREE.Mesh(new THREE.CylinderGeometry(0.655, 0.67, 0.08, 16), goldMat);
+      hem.position.y = 0.61;
+      this.charVisualGroup.add(hem);
+
+      // হাতে কাঁচের রেশমি চুড়ি
+      [-0.55, 0.55].forEach(xPos => {
+        const bangle = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.025, 8, 16), goldMat);
+        bangle.rotation.x = Math.PI / 2;
+        bangle.position.set(xPos, 1.3, 0);
+        this.charVisualGroup.add(bangle);
+      });
+
+    } else {
+      // --- ঐতিহ্যবাহী গ্রামীণ ছেলে মডেল (টি-শার্ট ও হাফপ্যান্ট) ---
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), hairMat);
+      hair.position.set(0, 2.18, -0.05);
+      hair.scale.set(1, 0.95, 1);
+      this.charVisualGroup.add(hair);
+
+      const shirtMat = new THREE.MeshStandardMaterial({ color: primaryColor, roughness: 0.6 });
+      this.shirtMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.75, 12), shirtMat);
+      this.shirtMesh.position.y = 1.45;
+      this.shirtMesh.castShadow = true;
+      this.charVisualGroup.add(this.shirtMesh);
+
+      const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1a237e, roughness: 0.7 });
+      const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.45, 12), pantsMat);
+      pants.position.y = 0.98;
+      pants.castShadow = true;
+      this.charVisualGroup.add(pants);
+    }
+
+    // ৪. বাম পা (ল্যাংচা দিয়ে দাঁড়ানোর পা - সোজা)
+    const legStand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.75, 8), skinMat);
+    legStand.position.set(-0.16, 0.42, 0);
+    legStand.castShadow = true;
+    this.charVisualGroup.add(legStand);
+
+    const footStand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), skinMat);
+    footStand.position.set(-0.16, 0.05, 0.08);
+    footStand.castShadow = true;
+    this.charVisualGroup.add(footStand);
+
+    // ৫. ডান পা (হাঁটু মুড়ে পিছনে ভাঁজ করা - এক পায়ে লাফানোর স্টাইল)
+    const thighBent = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.45, 8), skinMat);
+    thighBent.position.set(0.2, 0.62, -0.15);
+    thighBent.rotation.x = Math.PI / 3.5;
+    thighBent.castShadow = true;
+    this.charVisualGroup.add(thighBent);
+
+    const calfBent = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.45, 8), skinMat);
+    calfBent.position.set(0.2, 0.35, -0.32);
+    calfBent.rotation.x = -Math.PI / 4;
+    calfBent.castShadow = true;
+    this.charVisualGroup.add(calfBent);
+
+    // ৬. দুই হাত (ভারসাম্য রক্ষার জন্য প্রসারিত)
+    this.armL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.65, 8), skinMat);
+    this.armL.position.set(-0.55, 1.42, 0);
+    this.armL.rotation.z = Math.PI / 3.8;
+    this.armL.castShadow = true;
+    this.charVisualGroup.add(this.armL);
+
+    this.armR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.65, 8), skinMat);
+    this.armR.position.set(0.55, 1.42, 0);
+    this.armR.rotation.z = -Math.PI / 3.8;
+    this.armR.castShadow = true;
+    this.charVisualGroup.add(this.armR);
+  }
+
+  // চরিত্র জেন্ডার পরিবর্তন
+  setPlayerGender(playerIdx, gender) {
+    this.playerGenders[playerIdx] = gender;
+    if (this.activePlayerIdx === playerIdx) {
+      this.buildCharacterVisuals(gender, playerIdx);
+    }
+    this.updateCharacterUI();
+  }
+
+  toggleActivePlayerGender() {
+    const curr = this.playerGenders[this.activePlayerIdx] || 'male';
+    const next = curr === 'male' ? 'female' : 'male';
+    this.setPlayerGender(this.activePlayerIdx, next);
+    if (this.mode === 'online' && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'CHAR_CHANGE', playerIdx: this.myPlayerIdx, gender: next });
+    }
+    return next;
+  }
+
+  updateCharacterUI() {
+    const curr = this.playerGenders[this.activePlayerIdx] || 'male';
+    const btn = document.getElementById('btn-character');
+    if (btn) {
+      btn.innerText = curr === 'female' ? '👧' : '👦';
+      btn.title = `বর্তমান চরিত্র: ${curr === 'female' ? 'মেয়ে' : 'ছেলে'} (ক্লিক করে পরিবর্তন করুন)`;
+    }
+  }
+
+  isMyTurn() {
+    if (this.mode !== 'online') return true;
+    return this.activePlayerIdx === this.myPlayerIdx;
   }
 
   // ৩ডি রে-কাস্টার (টাচ ও মাউস অবস্থানকে ৩ডি গ্রাউন্ডে রূপান্তর)
@@ -454,6 +570,7 @@ class Ekkadokka3D {
 
     const onPointerDown = (clientX, clientY) => {
       if (this.state === 'PAUSED' || this.isAI[this.activePlayerIdx]) return;
+      if (this.mode === 'online' && !this.isMyTurn()) return;
       window.soundEngine.init();
 
       const pt = getRayGroundPoint(clientX, clientY);
@@ -469,16 +586,23 @@ class Ekkadokka3D {
     };
 
     const onPointerMove = (clientX, clientY) => {
+      if (this.mode === 'online' && !this.isMyTurn()) return;
       if (this.isDragging && this.state === 'THROW_AIM') {
         const pt = getRayGroundPoint(clientX, clientY);
         if (pt) {
           this.dragTargetPoint.copy(pt);
           this.updateThrowAimIndicator();
+
+          if (this.mode === 'online' && this.onOnlineAction && (!this.lastAimSent || Date.now() - this.lastAimSent > 60)) {
+            this.lastAimSent = Date.now();
+            this.onOnlineAction({ type: 'AIM', x: pt.x, z: pt.z });
+          }
         }
       }
     };
 
     const onPointerUp = () => {
+      if (this.mode === 'online' && !this.isMyTurn()) return;
       if (this.isDragging && this.state === 'THROW_AIM') {
         this.isDragging = false;
         this.trajectoryLine.visible = false;
@@ -542,9 +666,13 @@ class Ekkadokka3D {
   }
 
   // ৩ডি চাড়া নিক্ষেপ সম্পাদন
-  executeCharaThrow3D(destX, destZ) {
+  executeCharaThrow3D(destX, destZ, isRemote = false) {
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'THROW', x: destX, z: destZ });
+    }
     this.state = 'THROW_FLIGHT';
     this.targetRing.visible = false;
+    this.trajectoryLine.visible = false;
     window.soundEngine.playThrow();
 
     this.charaState.isAirborne = true;
@@ -657,6 +785,7 @@ class Ekkadokka3D {
   handle3DBoardClick(clickX, clickZ) {
     if (this.state !== 'HOPPING' && this.state !== 'RETURN_HOP') return;
     if (this.hopState.isHopping || this.isAI[this.activePlayerIdx]) return;
+    if (this.mode === 'online' && !this.isMyTurn()) return;
 
     // ১. চাড়ায় ট্যাপ করে বাইরে পাঠানো
     const distToChara = Math.hypot(clickX - this.charaGroup.position.x, clickZ - this.charaGroup.position.z);
@@ -706,7 +835,10 @@ class Ekkadokka3D {
   }
 
   // খেলোয়াড়ের ৩ডি জাম্প অ্যানিমেশন
-  hopPlayerTo3D(destX, destZ, boxNum, onComplete) {
+  hopPlayerTo3D(destX, destZ, boxNum, onComplete, isRemote = false) {
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'HOP', x: destX, z: destZ, box: boxNum });
+    }
     window.soundEngine.playHop();
     this.hopState.isHopping = true;
     this.hopState.progress = 0;
@@ -787,7 +919,10 @@ class Ekkadokka3D {
   }
 
   // চাড়ায় লাথি দেওয়া বা বাইরে পাঠানো ৩ডি
-  executeCharaKick3D() {
+  executeCharaKick3D(isRemote = false) {
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'KICK' });
+    }
     window.soundEngine.playCharaKick();
     this.charaState.isSliding = true;
     this.charaState.target.set((Math.random() - 0.5) * 1.5, 0.06, this.baselineZ + 0.5);
@@ -805,7 +940,7 @@ class Ekkadokka3D {
     }, 700);
   }
 
-  completeRoundSuccess() {
+  completeRoundSuccess(isRemote = false) {
     this.state = 'ROUND_SUCCESS';
     window.soundEngine.playSuccess();
 
@@ -816,15 +951,23 @@ class Ekkadokka3D {
     this.setMessage(`অভিনন্দন! ${pName} এই ঘর জয় করেছেন!`, '+১ পয়েন্ট যোগ হয়েছে!');
     this.updateHUD();
 
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({
+        type: 'ROUND_WIN',
+        scores: this.scores,
+        targets: this.playerTargets
+      });
+    }
+
     if (this.playerTargets[this.activePlayerIdx] > 6) {
-      setTimeout(() => this.triggerMatchWin(), 1200);
+      setTimeout(() => this.triggerMatchWin(false), 1200);
       return;
     }
 
     setTimeout(() => this.startTurn(), 2200);
   }
 
-  triggerMatchWin() {
+  triggerMatchWin(isRemote = false) {
     this.state = 'GAME_OVER';
     window.soundEngine.playVictory();
 
@@ -834,11 +977,18 @@ class Ekkadokka3D {
     const desc = document.getElementById('winner-desc');
 
     if (title) title.innerText = `🏆 ${winnerName} চ্যাম্পিয়ন! 🏆`;
-    if (desc) desc.innerText = `অভিনন্দন! আপনি এক্কাদোক্কার সব ঘর জয় করে বিজয়ী হয়েছেন!`;
+    if (desc) desc.innerText = `অভিনন্দন! এক্কাদোক্কার সব ঘর জয় করে বিজয়ী হয়েছেন!`;
     if (modal) modal.style.display = 'flex';
+
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'MATCH_WIN', winnerIdx: this.activePlayerIdx });
+    }
   }
 
-  triggerFoul(reason) {
+  triggerFoul(reason, isRemote = false) {
+    if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
+      this.onOnlineAction({ type: 'FOUL', reason });
+    }
     this.state = 'FOUL_PAUSE';
     window.soundEngine.playFoul();
 
@@ -850,6 +1000,14 @@ class Ekkadokka3D {
 
   switchTurn() {
     this.activePlayerIdx = this.activePlayerIdx === 0 ? 1 : 0;
+    if (this.mode === 'online' && this.onOnlineAction && this.isMyTurn()) {
+      this.onOnlineAction({
+        type: 'TURN_SWITCH',
+        activeIdx: this.activePlayerIdx,
+        scores: this.scores,
+        targets: this.playerTargets
+      });
+    }
     this.startTurn();
   }
 
@@ -858,8 +1016,10 @@ class Ekkadokka3D {
     this.playerCurrentBox = 0;
     const isAiTurn = this.isAI[this.activePlayerIdx];
 
-    // পোশাক আপডেট
-    this.shirtMesh.material = isAiTurn ? this.shirtMatAI : this.shirtMatP1;
+    // পোশাক ও জেন্ডার মডেল আপডেট
+    const currentGender = this.playerGenders[this.activePlayerIdx] || 'male';
+    this.buildCharacterVisuals(currentGender, this.activePlayerIdx);
+    this.updateCharacterUI();
 
     // অবস্থান রিসেট
     this.playerGroup.position.set(-0.7, 0, this.baselineZ);
@@ -867,10 +1027,18 @@ class Ekkadokka3D {
     this.charaState.boxNum = null;
 
     const targetBox = this.playerTargets[this.activePlayerIdx];
-    const bnTarget = this.boxes[targetBox].bn;
+    const bnTarget = this.boxes[targetBox]?.bn || '১';
     const pName = this.playerNames[this.activePlayerIdx];
 
-    this.setMessage(`${pName}-এর পালা! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+    if (this.mode === 'online') {
+      if (this.isMyTurn()) {
+        this.setMessage(`আপনার পালা! লক্ষ্য: ঘর ${bnTarget}`, 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+      } else {
+        this.setMessage(`বন্ধুর পালা! লক্ষ্য: ঘর ${bnTarget}`, 'বন্ধুর নিক্ষেপ দেখার অপেক্ষায়...');
+      }
+    } else {
+      this.setMessage(`${pName}-এর পালা! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+    }
     this.updateHUD();
 
     if (isAiTurn) {
@@ -887,12 +1055,71 @@ class Ekkadokka3D {
     if (mode === 'p_vs_p') {
       this.playerNames = ['প্লেয়ার ১', 'প্লেয়ার ২'];
       this.isAI = [false, false];
+    } else if (mode === 'online') {
+      this.isAI = [false, false];
     } else {
       this.playerNames = ['আপনি', 'বল্টু'];
       this.isAI = [false, true];
     }
 
     this.startTurn();
+  }
+
+  // রিমোট অনলাইন অ্যাকশন হ্যান্ডলিং
+  handleRemoteOnlineAction(action) {
+    if (!action || !action.type) return;
+
+    switch (action.type) {
+      case 'AIM':
+        this.dragTargetPoint.set(action.x, 0, action.z);
+        this.updateThrowAimIndicator();
+        break;
+
+      case 'THROW':
+        this.targetRing.visible = false;
+        this.trajectoryLine.visible = false;
+        this.executeCharaThrow3D(action.x, action.z, true);
+        break;
+
+      case 'HOP':
+        this.hopPlayerTo3D(action.x, action.z, action.box, () => {
+          this.checkHoppingMilestone();
+        }, true);
+        break;
+
+      case 'KICK':
+        this.executeCharaKick3D(true);
+        break;
+
+      case 'FOUL':
+        this.triggerFoul(action.reason, true);
+        break;
+
+      case 'TURN_SWITCH':
+        this.activePlayerIdx = action.activeIdx;
+        if (action.scores) this.scores = action.scores;
+        if (action.targets) this.playerTargets = action.targets;
+        this.startTurn();
+        break;
+
+      case 'ROUND_WIN':
+        if (action.scores) this.scores = action.scores;
+        if (action.targets) this.playerTargets = action.targets;
+        window.soundEngine.playRoundWin();
+        this.updateHUD();
+        setTimeout(() => this.startTurn(), 2000);
+        break;
+
+      case 'MATCH_WIN':
+        this.triggerMatchWin(true);
+        break;
+
+      case 'CHAR_CHANGE':
+        if (typeof action.playerIdx === 'number' && action.gender) {
+          this.setPlayerGender(action.playerIdx, action.gender);
+        }
+        break;
+    }
   }
 
   // এআই ৩ডি লজিক
@@ -977,7 +1204,7 @@ class Ekkadokka3D {
     const kickBtn = document.getElementById('action-kick-btn');
     const hopBtn = document.getElementById('action-hop-btn');
 
-    const isHuman = !this.isAI[this.activePlayerIdx];
+    const isHuman = !this.isAI[this.activePlayerIdx] && (this.mode !== 'online' || this.isMyTurn());
     if (throwBtn) throwBtn.style.display = (this.state === 'THROW_AIM' && isHuman) ? 'inline-flex' : 'none';
     if (kickBtn) kickBtn.style.display = (this.state === 'HOPPING' && this.isAdjacentToChara() && isHuman) ? 'inline-flex' : 'none';
     if (hopBtn) hopBtn.style.display = ((this.state === 'HOPPING' || this.state === 'RETURN_HOP') && isHuman) ? 'inline-flex' : 'none';

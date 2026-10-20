@@ -28,6 +28,7 @@
 
         <div class="nav-actions">
           <button id="btn-sound" class="btn-circle" title="শব্দ">🔊</button>
+          <button id="btn-character" class="btn-circle" title="চরিত্র পরিবর্তন (ছেলে/মেয়ে)">👦</button>
           <button id="btn-camera" class="btn-circle" title="ক্যামেরা অ্যাঙ্গেল পরিবর্তন">🎥</button>
           <button id="btn-tutorial" class="btn-circle" title="খেলার নিয়মাবলী">📖</button>
           <button id="btn-restart" class="btn-circle" title="নতুন খেলা">🔄</button>
@@ -72,6 +73,14 @@
         </button>
       </div>
 
+      <!-- অনলাইন ইমোজি রিঅ্যাকশন বার -->
+      <div id="online-reactions-bar" class="online-reactions-bar" style="display: none;">
+        <button class="btn-reaction" data-emoji="👏" title="হাততালি">👏</button>
+        <button class="btn-reaction" data-emoji="🔥" title="দারুণ">🔥</button>
+        <button class="btn-reaction" data-emoji="🤣" title="হাসি">🤣</button>
+        <button class="btn-reaction" data-emoji="🇧🇩" title="বাংলাদেশ">🇧🇩</button>
+      </div>
+
       <div class="view-tip">💡 স্ক্রিনে আঙুল রেখে নিশানা করুন ও ছেড়ে দিন • 🎥 চাপলে টপ-ভিউ হবে</div>
     </footer>
   </div>
@@ -80,9 +89,24 @@
   <div id="mode-modal" class="modal-backdrop">
     <div class="modal-box">
       <h2>🇧🇩 এক্কাদোক্কা 3D 🇧🇩</h2>
-      <p style="font-size:0.9rem; color:#5d4037; margin-bottom:12px;">
+      <p style="font-size:0.9rem; color:#5d4037; margin-bottom:10px;">
         বাংলার ঐতিহ্যবাহী মাটির উঠোনের খেলা আধুনিক ৩ডি রূপান্তরের সাথে!
       </p>
+
+      <!-- চরিত্র পছন্দ (ছেলে / মেয়ে) -->
+      <div class="char-select-block">
+        <div class="char-select-title">🎭 আপনার চরিত্র নির্বাচন করুন:</div>
+        <div class="char-cards-grid">
+          <button id="char-pick-male" type="button" class="char-picker-card active">
+            <span class="char-avatar">👦</span>
+            <span class="char-label">ছেলে</span>
+          </button>
+          <button id="char-pick-female" type="button" class="char-picker-card">
+            <span class="char-avatar">👧</span>
+            <span class="char-label">মেয়ে</span>
+          </button>
+        </div>
+      </div>
 
       <button id="mode-ai-btn" class="btn-mode-3d">
         <span>👤 একক খেলোয়াড় (বনাম কম্পিউটার বল্টু)</span>
@@ -90,6 +114,10 @@
       </button>
       <button id="mode-pvp-btn" class="btn-mode-3d">
         <span>👥 দুই খেলোয়াড় (পাশাপাশি ২ জন)</span>
+        <span>▶</span>
+      </button>
+      <button id="mode-online-btn" class="btn-mode-3d btn-mode-online">
+        <span>🌐 অনলাইন মাল্টিপ্লেয়ার (রুম ও ৪ ডিজিট পিন)</span>
         <span>▶</span>
       </button>
 
@@ -150,6 +178,65 @@
     </div>
   </div>
 
+  <!-- অনলাইন মাল্টিপ্লেয়ার মডাল (WebRTC P2P) -->
+  <div id="online-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 440px;">
+      <h2>🌐 অনলাইন মাল্টিপ্লেয়ার</h2>
+      <p style="font-size: 0.88rem; color: #5d4037; margin-bottom: 12px;">
+        পৃথিবীর যেকোনো প্রান্তের বন্ধুর সাথে ৪ ডিজিট পিন দিয়ে সরাসরি খেলুন!
+      </p>
+
+      <!-- ট্যাব -->
+      <div class="online-tabs">
+        <button id="tab-create-room" class="tab-btn active" type="button">রুম তৈরি করুন</button>
+        <button id="tab-join-room" class="tab-btn" type="button">রুমে যোগ দিন</button>
+      </div>
+
+      <!-- রুম তৈরি প্যানেল -->
+      <div id="panel-create-room" class="online-panel">
+        <div class="pin-display-box">
+          <div class="pin-label">আপনার ৪ ডিজিট রুম পিন:</div>
+          <div id="display-pin-code" class="pin-code">----</div>
+          <div id="create-status" class="pin-status">পিন তৈরি করতে নিচের বাটনে চাপুন</div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button id="btn-gen-pin" class="btn-primary-3d" type="button" style="flex: 1; background: #2e7d32;">
+            🎲 নতুন পিন তৈরি
+          </button>
+          <button id="btn-copy-link" class="btn-primary-3d" type="button" style="flex: 1; background: #0288d1;" disabled>
+            📋 লিংক কপি
+          </button>
+        </div>
+
+        <div id="host-waiting-indicator" style="display: none; margin-top: 12px; font-weight: bold; color: #e65100;">
+          ⏳ বন্ধুর যুক্ত হওয়ার অপেক্ষায় আছে...
+        </div>
+      </div>
+
+      <!-- রুমে যোগ দিন প্যানেল -->
+      <div id="panel-join-room" class="online-panel" style="display: none;">
+        <div style="margin: 12px 0;">
+          <label style="display:block; font-weight:bold; margin-bottom: 6px; color:#3e2723;">
+            বন্ধুর দেওয়া ৪ ডিজিট পিন লিখুন:
+          </label>
+          <input id="input-join-pin" type="text" maxlength="4" placeholder="যেমন: 4829" 
+                 class="pin-input-field" inputmode="numeric" pattern="[0-9]*" />
+        </div>
+
+        <button id="btn-connect-room" class="btn-primary-3d" type="button" style="width: 100%; background: #2e7d32;">
+          🚀 খেলায় যোগ দিন
+        </button>
+
+        <div id="join-status-msg" style="margin-top: 10px; font-size: 0.9rem; font-weight: bold; min-height: 22px;"></div>
+      </div>
+
+      <button id="btn-close-online" class="btn-primary-3d" type="button" style="background: #757575; width: 100%; margin-top: 14px;">
+        ← মেনুতে ফিরে যান
+      </button>
+    </div>
+  </div>
+
 </div>
 
 <!-- Three.js 3D লাইব্রেরি (লোকাল UMD ও CDN ফলব্যাক) -->
@@ -160,18 +247,29 @@
   }
 </script>
 
+<!-- PeerJS লাইব্রেরি (WebRTC P2P অনলাইন মাল্টিপ্লেয়ার) -->
+<script src="js/peerjs.min.js"></script>
+<script>
+  if (typeof Peer === 'undefined') {
+    document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><' + '/script>');
+  }
+</script>
+
 <!-- অডিও ইঞ্জিন -->
 <script src="js/audio.js"></script>
 
 <!-- ৩ডি গেম অ্যাপ্লিকেশন -->
 <script src="js/game3d.js"></script>
 
+<!-- অনলাইন মাল্টিপ্লেয়ার ম্যানেজার -->
+<script src="js/online.js"></script>
+
 <!-- UI কন্ট্রোলার স্ক্রিপ্ট -->
 <script>
-
   window.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('canvas-3d-container');
     const game = new window.Ekkadokka3D(container);
+    const onlineMgr = new window.EkkadokkaOnlineManager(game);
 
     // সাউন্ড টগল
     const soundBtn = document.getElementById('btn-sound');
@@ -180,6 +278,33 @@
       soundBtn.innerText = isMuted ? '🔇' : '🔊';
       if (!isMuted) window.soundEngine.playClick();
     });
+
+    // চরিত্র পরিবর্তন (ছেলে/মেয়ে টগল বাটন)
+    const charBtn = document.getElementById('btn-character');
+    if (charBtn) {
+      charBtn.addEventListener('click', () => {
+        window.soundEngine.playClick();
+        game.toggleActivePlayerGender();
+      });
+    }
+
+    // মোড বাছাই মডালে চরিত্র পিকার (ছেলে / মেয়ে)
+    const pickMale = document.getElementById('char-pick-male');
+    const pickFemale = document.getElementById('char-pick-female');
+    if (pickMale && pickFemale) {
+      pickMale.addEventListener('click', () => {
+        window.soundEngine.playClick();
+        pickMale.classList.add('active');
+        pickFemale.classList.remove('active');
+        game.setPlayerGender(0, 'male');
+      });
+      pickFemale.addEventListener('click', () => {
+        window.soundEngine.playClick();
+        pickFemale.classList.add('active');
+        pickMale.classList.remove('active');
+        game.setPlayerGender(0, 'female');
+      });
+    }
 
     // ক্যামেরা ভিউ টগল (আইসোমেট্রিক ৩ডি / টপ-ডাউন)
     document.getElementById('btn-camera').addEventListener('click', () => {
@@ -201,16 +326,30 @@
       game.startNewGame('p_vs_p');
     });
 
+    // অনলাইন মোড বাটন
+    const onlineModal = document.getElementById('online-modal');
+    document.getElementById('mode-online-btn').addEventListener('click', () => {
+      window.soundEngine.playClick();
+      modeModal.style.display = 'none';
+      onlineModal.style.display = 'flex';
+    });
+
     // রিস্টার্ট
     document.getElementById('btn-restart').addEventListener('click', () => {
       window.soundEngine.playClick();
       modeModal.style.display = 'flex';
+      onlineMgr.cleanup();
+      const emojiBar = document.getElementById('online-reactions-bar');
+      if (emojiBar) emojiBar.style.display = 'none';
     });
 
     document.getElementById('btn-winner-restart').addEventListener('click', () => {
       window.soundEngine.playClick();
       document.getElementById('winner-modal').style.display = 'none';
       modeModal.style.display = 'flex';
+      onlineMgr.cleanup();
+      const emojiBar = document.getElementById('online-reactions-bar');
+      if (emojiBar) emojiBar.style.display = 'none';
     });
 
     // টিউটোরিয়াল
