@@ -100,6 +100,58 @@ class EkkadokkaOnlineManager {
       });
     });
 
+    // লাইভ চ্যাট / কমেন্ট বাটন
+    const btnOpenChat = document.getElementById('btn-open-chat');
+    const chatModal = document.getElementById('chat-modal');
+    const btnCloseChat = document.getElementById('btn-close-chat');
+    const btnSendChat = document.getElementById('btn-send-chat');
+    const chatInput = document.getElementById('chat-input-text');
+
+    if (btnOpenChat && chatModal) {
+      btnOpenChat.addEventListener('click', () => {
+        window.soundEngine?.playClick();
+        chatModal.style.display = 'flex';
+        setTimeout(() => chatInput?.focus(), 150);
+      });
+    }
+
+    if (btnCloseChat && chatModal) {
+      btnCloseChat.addEventListener('click', () => {
+        window.soundEngine?.playClick();
+        chatModal.style.display = 'none';
+      });
+    }
+
+    const doSendChat = () => {
+      const val = chatInput ? chatInput.value.trim() : '';
+      if (!val) return;
+      this.sendChatMessage(val);
+      if (chatInput) chatInput.value = '';
+      if (chatModal) chatModal.style.display = 'none';
+    };
+
+    if (btnSendChat) {
+      btnSendChat.addEventListener('click', doSendChat);
+    }
+
+    if (chatInput) {
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doSendChat();
+        }
+      });
+    }
+
+    // কুইক কমেন্ট চিপস
+    document.querySelectorAll('.chat-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const text = chip.innerText.trim();
+        this.sendChatMessage(text);
+        if (chatModal) chatModal.style.display = 'none';
+      });
+    });
+
     // গেম থেকে অনলাইন অ্যাকশন হুক
     this.game.onOnlineAction = (action) => {
       this.sendData(action);
@@ -315,6 +367,10 @@ class EkkadokkaOnlineManager {
         this.showFloatingEmoji(data.emoji, false);
         break;
 
+      case 'CHAT_MSG':
+        this.showLiveComment(data.sender || 'বন্ধু', data.text, false);
+        break;
+
       default:
         // ৩ডি গেম ইঞ্জিনে ফরওয়ার্ড
         this.game.handleRemoteOnlineAction(data);
@@ -438,6 +494,76 @@ class EkkadokkaOnlineManager {
     setTimeout(() => {
       el.remove();
     }, 2200);
+  }
+
+  // লাইভ কমেন্ট পাঠানো
+  sendChatMessage(text) {
+    if (!text || !text.trim()) return;
+    const cleanText = text.trim();
+
+    // নিজের স্ক্রিনে সাথে সাথে বার্তা ভাসবে
+    this.showLiveComment('আপনি', cleanText, true);
+
+    if (this.isConnected && this.conn) {
+      const senderLabel = this.isHost ? 'হোস্ট' : 'বন্ধু';
+      this.sendData({
+        type: 'CHAT_MSG',
+        sender: senderLabel,
+        text: cleanText
+      });
+    } else if (this.game.mode === 'p_vs_ai') {
+      this.scheduleAIReply(cleanText);
+    }
+  }
+
+  // লাইভ কমেন্ট বেলুন প্রদর্শন (স্ক্রিনে ভেসে থাকবে এবং অটো মুছে যাবে)
+  showLiveComment(sender, text, isSelf) {
+    const container = document.getElementById('chat-balloon-container');
+    if (!container) return;
+
+    // সর্বোচ্চ ৩টি সাম্প্রতিক মেসেজ রাখা
+    while (container.children.length >= 3) {
+      container.children[0].remove();
+    }
+
+    const balloon = document.createElement('div');
+    balloon.className = `live-chat-balloon ${isSelf ? 'self' : 'peer'}`;
+
+    const cleanSender = String(sender || 'বন্ধু').substring(0, 16);
+    const cleanText = String(text || '').substring(0, 80);
+
+    balloon.innerHTML = `
+      <div class="chat-balloon-header">
+        <span class="chat-avatar">${isSelf ? '🗣️' : '💬'}</span>
+        <span class="chat-sender-name">${cleanSender}</span>
+      </div>
+      <div class="chat-balloon-text">${cleanText}</div>
+    `;
+
+    container.appendChild(balloon);
+    window.soundEngine?.playClick();
+
+    // ৪.৫ সেকেন্ড পর স্মুথলি আউট
+    setTimeout(() => {
+      balloon.classList.add('fade-out');
+      setTimeout(() => balloon.remove(), 400);
+    }, 4500);
+  }
+
+  // কম্পিউটারের মজার প্রতিউত্তর
+  scheduleAIReply(userMsg) {
+    const aiReplies = [
+      'হাহাহা, দেখি কেমন পারো! 😈',
+      'এক্কাদোক্কায় আমার সাথে পারবে না! 😎',
+      'সাবধানে খেলো, দাগে যেন না লাগে! 😜',
+      'এবার কিন্তু আমার পালা আসছে! 🎯',
+      'বাহ্ দারুণ খেলছো তো! 🔥',
+      '৫০ পয়েন্ট কিন্তু আমিই আগে করব! 🏆'
+    ];
+    setTimeout(() => {
+      const reply = aiReplies[Math.floor(Math.random() * aiReplies.length)];
+      this.showLiveComment('বল্টু (কম্পিউটার)', reply, false);
+    }, 1500);
   }
 
   cleanup() {

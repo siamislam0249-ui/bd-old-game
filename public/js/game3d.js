@@ -30,6 +30,11 @@ class Ekkadokka3D {
     this.onOnlineAction = null;
     this.lastAimSent = 0;
 
+    // রোলিং চালের সীমা ও ৫০ পয়েন্ট টার্গেট
+    this.maxStreak = 5;      // একটানা সর্বোচ্চ ৫টি সফল চাল
+    this.currentStreak = 0;  // বর্তমান একটানা সফল চাল সংখ্যা
+    this.targetScore = 50;   // ৫০ পয়েন্টে ম্যাচ জয়
+
     // স্টেটসমূহ: 'MENU', 'THROW_AIM', 'THROW_FLIGHT', 'VALIDATE_THROW',
     // 'HOPPING', 'KICK_CHARA', 'RETURN_HOP', 'FOUL_PAUSE', 'ROUND_SUCCESS', 'GAME_OVER'
     this.state = 'MENU';
@@ -944,23 +949,41 @@ class Ekkadokka3D {
     this.state = 'ROUND_SUCCESS';
     window.soundEngine.playSuccess();
 
-    this.scores[this.activePlayerIdx] += 1;
-    this.playerTargets[this.activePlayerIdx] += 1;
+    this.scores[this.activePlayerIdx] += 10;
+    this.currentStreak += 1;
+
+    // ঘর সাইকেলিং (১-৬ ঘুরে আবার ১)
+    if (this.playerTargets[this.activePlayerIdx] >= 6) {
+      this.playerTargets[this.activePlayerIdx] = 1;
+    } else {
+      this.playerTargets[this.activePlayerIdx] += 1;
+    }
 
     const pName = this.playerNames[this.activePlayerIdx];
-    this.setMessage(`অভিনন্দন! ${pName} এই ঘর জয় করেছেন!`, '+১ পয়েন্ট যোগ হয়েছে!');
+    this.setMessage(`দারুণ! ${pName} সফল চাল সম্পন্ন করেছেন (+১০ পঃ)`, `চাল: ${this.currentStreak}/${this.maxStreak} • স্কোর: ${this.scores[this.activePlayerIdx]}/${this.targetScore}`);
     this.updateHUD();
 
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
       this.onOnlineAction({
         type: 'ROUND_WIN',
         scores: this.scores,
-        targets: this.playerTargets
+        targets: this.playerTargets,
+        streak: this.currentStreak
       });
     }
 
-    if (this.playerTargets[this.activePlayerIdx] > 6) {
+    // ১. ৫০ পয়েন্ট পূর্ণ হলে বিজয়ী
+    if (this.scores[this.activePlayerIdx] >= this.targetScore) {
       setTimeout(() => this.triggerMatchWin(false), 1200);
+      return;
+    }
+
+    // ২. একটানা সর্বোচ্চ ৫টি চাল পূর্ণ হলে নিয়ম অনুযায়ী পালা পরিবর্তন
+    if (this.currentStreak >= this.maxStreak) {
+      setTimeout(() => {
+        this.setMessage(`চমৎকার! একটানা ৫টি চাল পূর্ণ হয়েছে!`, 'রোলিং নিয়ম অনুযায়ী এবার প্রতিপক্ষের পালা...');
+        setTimeout(() => this.switchTurn(), 2000);
+      }, 1200);
       return;
     }
 
@@ -976,8 +999,8 @@ class Ekkadokka3D {
     const title = document.getElementById('winner-title');
     const desc = document.getElementById('winner-desc');
 
-    if (title) title.innerText = `🏆 ${winnerName} চ্যাম্পিয়ন! 🏆`;
-    if (desc) desc.innerText = `অভিনন্দন! এক্কাদোক্কার সব ঘর জয় করে বিজয়ী হয়েছেন!`;
+    if (title) title.innerText = `🏆 ${winnerName} ৫০ পয়েন্টে চ্যাম্পিয়ন! 🏆`;
+    if (desc) desc.innerText = `অভিনন্দন! আপনি ৫০ পয়েন্ট লক্ষ্য অর্জন করে এক্কাদোক্কার ম্যাচ জয় করেছেন!`;
     if (modal) modal.style.display = 'flex';
 
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
@@ -990,6 +1013,7 @@ class Ekkadokka3D {
       this.onOnlineAction({ type: 'FOUL', reason });
     }
     this.state = 'FOUL_PAUSE';
+    this.currentStreak = 0; // ফাউল হলে স্ট্রিক ০ হয়
     window.soundEngine.playFoul();
 
     this.setMessage(`ফাউল! ${reason}`, 'পালা পরিবর্তন হচ্ছে...');
@@ -1000,12 +1024,14 @@ class Ekkadokka3D {
 
   switchTurn() {
     this.activePlayerIdx = this.activePlayerIdx === 0 ? 1 : 0;
+    this.currentStreak = 0; // নতুন খেলোয়াড়ের চাল রিসেট
     if (this.mode === 'online' && this.onOnlineAction && this.isMyTurn()) {
       this.onOnlineAction({
         type: 'TURN_SWITCH',
         activeIdx: this.activePlayerIdx,
         scores: this.scores,
-        targets: this.playerTargets
+        targets: this.playerTargets,
+        streak: 0
       });
     }
     this.startTurn();
@@ -1029,15 +1055,16 @@ class Ekkadokka3D {
     const targetBox = this.playerTargets[this.activePlayerIdx];
     const bnTarget = this.boxes[targetBox]?.bn || '১';
     const pName = this.playerNames[this.activePlayerIdx];
+    const streakInfo = `চাল: ${this.currentStreak + 1}/${this.maxStreak}`;
 
     if (this.mode === 'online') {
       if (this.isMyTurn()) {
-        this.setMessage(`আপনার পালা! লক্ষ্য: ঘর ${bnTarget}`, 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+        this.setMessage(`আপনার পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
       } else {
-        this.setMessage(`বন্ধুর পালা! লক্ষ্য: ঘর ${bnTarget}`, 'বন্ধুর নিক্ষেপ দেখার অপেক্ষায়...');
+        this.setMessage(`বন্ধুর পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, 'বন্ধুর নিক্ষেপ দেখার অপেক্ষায়...');
       }
     } else {
-      this.setMessage(`${pName}-এর পালা! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
+      this.setMessage(`${pName}-এর পালা (${streakInfo})! লক্ষ্য: ঘর ${bnTarget}`, isAiTurn ? 'কম্পিউটার হিসাব করছে...' : 'চাড়া টেনে লক্ষ্য ঘরে ছুড়ে দিন');
     }
     this.updateHUD();
 
@@ -1051,6 +1078,7 @@ class Ekkadokka3D {
     this.activePlayerIdx = 0;
     this.playerTargets = [1, 1];
     this.scores = [0, 0];
+    this.currentStreak = 0;
 
     if (mode === 'p_vs_p') {
       this.playerNames = ['প্লেয়ার ১', 'প্লেয়ার ২'];
@@ -1097,6 +1125,7 @@ class Ekkadokka3D {
 
       case 'TURN_SWITCH':
         this.activePlayerIdx = action.activeIdx;
+        this.currentStreak = action.streak || 0;
         if (action.scores) this.scores = action.scores;
         if (action.targets) this.playerTargets = action.targets;
         this.startTurn();
@@ -1105,9 +1134,15 @@ class Ekkadokka3D {
       case 'ROUND_WIN':
         if (action.scores) this.scores = action.scores;
         if (action.targets) this.playerTargets = action.targets;
+        this.currentStreak = action.streak || 0;
         window.soundEngine.playRoundWin();
         this.updateHUD();
-        setTimeout(() => this.startTurn(), 2000);
+        if (this.currentStreak >= this.maxStreak) {
+          this.setMessage(`চমৎকার! একটানা ৫টি চাল পূর্ণ হয়েছে!`, 'রোলিং নিয়ম অনুযায়ী এবার প্রতিপক্ষের পালা...');
+          setTimeout(() => this.switchTurn(), 2000);
+        } else {
+          setTimeout(() => this.startTurn(), 2000);
+        }
         break;
 
       case 'MATCH_WIN':
@@ -1193,11 +1228,12 @@ class Ekkadokka3D {
 
     if (p1Name) p1Name.innerText = this.playerNames[0];
     if (p2Name) p2Name.innerText = this.playerNames[1];
-    if (p1Score) p1Score.innerText = `${this.scores[0]} পঃ (ঘর ${this.boxes[this.playerTargets[0]]?.bn || 'জয়'})`;
-    if (p2Score) p2Score.innerText = `${this.scores[1]} পঃ (ঘর ${this.boxes[this.playerTargets[1]]?.bn || 'জয়'})`;
+    if (p1Score) p1Score.innerText = `${this.scores[0]}/${this.targetScore} পঃ (ঘর ${this.boxes[this.playerTargets[0]]?.bn || '১'})`;
+    if (p2Score) p2Score.innerText = `${this.scores[1]}/${this.targetScore} পঃ (ঘর ${this.boxes[this.playerTargets[1]]?.bn || '১'})`;
 
     if (turnBadge) {
-      turnBadge.innerText = `${this.playerNames[this.activePlayerIdx]}-এর পালা`;
+      const activeStreak = `চাল ${Math.min(this.maxStreak, this.currentStreak + 1)}/৫`;
+      turnBadge.innerText = `${this.playerNames[this.activePlayerIdx]}-এর পালা (${activeStreak})`;
     }
 
     const throwBtn = document.getElementById('action-throw-btn');

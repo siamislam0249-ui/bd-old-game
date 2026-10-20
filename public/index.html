@@ -29,12 +29,16 @@
         <div class="nav-actions">
           <button id="btn-sound" class="btn-circle" title="শব্দ">🔊</button>
           <button id="btn-character" class="btn-circle" title="চরিত্র পরিবর্তন (ছেলে/মেয়ে)">👦</button>
+          <button id="btn-open-chat" class="btn-circle btn-chat-trigger" title="লাইভ কমেন্ট / বার্তা">💬</button>
           <button id="btn-camera" class="btn-circle" title="ক্যামেরা অ্যাঙ্গেল পরিবর্তন">🎥</button>
           <button id="btn-tutorial" class="btn-circle" title="খেলার নিয়মাবলী">📖</button>
           <button id="btn-restart" class="btn-circle" title="নতুন খেলা">🔄</button>
           <button id="btn-fullscreen" class="btn-circle" title="ফুলস্ক্রিন">⛶</button>
         </div>
       </div>
+
+      <!-- লাইভ কমেন্ট বেলুন কন্টেইনার (স্ক্রিনে বার্তা ভেসে উঠবে) -->
+      <div id="chat-balloon-container" class="chat-balloon-container"></div>
 
       <!-- স্লিম HUD স্কোর রিবন -->
       <div class="hud-ribbon">
@@ -234,6 +238,38 @@
       <button id="btn-close-online" class="btn-primary-3d" type="button" style="background: #757575; width: 100%; margin-top: 14px;">
         ← মেনুতে ফিরে যান
       </button>
+    </div>
+  </div>
+
+  <!-- লাইভ বার্তা ও কমেন্ট মডাল -->
+  <div id="chat-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 420px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <h2 style="font-size:1.2rem; margin:0;">💬 লাইভ বার্তা পাঠান</h2>
+        <button id="btn-close-chat" class="btn-circle" style="width:32px; height:32px; font-size:1rem;" type="button">✕</button>
+      </div>
+      <p style="font-size:0.85rem; color:#5d4037; margin-bottom: 10px;">
+        দ্রুত ট্যাপ করুন অথবা নিজের মতো লিখে স্ক্রিনে পাঠান:
+      </p>
+
+      <!-- কুইক ট্যাপ চিপস -->
+      <div class="chat-quick-chips">
+        <button class="chat-chip" type="button">দারুণ শট! 🔥</button>
+        <button class="chat-chip" type="button">এবার আমি জিতব! 😎</button>
+        <button class="chat-chip" type="button">একটু সাবধানে! 😜</button>
+        <button class="chat-chip" type="button">দাগে পা দিয়ো না! 🤣</button>
+        <button class="chat-chip" type="button">এক্কাদোক্কা কিং 👑</button>
+        <button class="chat-chip" type="button">বাহ্ সাবাশ! 👏</button>
+      </div>
+
+      <!-- টেক্সট ইনপুট ও সেন্ড -->
+      <div class="chat-input-row" style="margin-top: 12px; display:flex; gap: 6px;">
+        <input id="chat-input-text" type="text" maxlength="60" placeholder="বার্তা লিখুন..." 
+               class="chat-text-input" />
+        <button id="btn-send-chat" class="btn-primary-3d" type="button" style="margin:0; padding: 8px 16px; white-space:nowrap; background:#d84315;">
+          পাঠান 🚀
+        </button>
+      </div>
     </div>
   </div>
 
