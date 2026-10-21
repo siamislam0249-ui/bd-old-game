@@ -220,8 +220,8 @@ class EkkadokkaOnlineManager {
         this.conn = conn;
         this.setupConnectionHandlers();
 
-        // গেস্টকে ওয়েলকাম ও ইনিশিয়াল স্টেট পাঠানো
-        setTimeout(() => {
+        // গেস্টকে ওয়েলকাম ও ইনিশিয়াল স্টেট পাঠানো (কানেকশন ওপেন নিশ্চিত হওয়া)
+        const onHostConnOpen = () => {
           const myGender = this.game.playerGenders[0] || 'male';
           this.sendData({
             type: 'INIT_START',
@@ -229,7 +229,13 @@ class EkkadokkaOnlineManager {
             roomPin: this.roomPin
           });
           this.startOnlineMatch(true);
-        }, 500);
+        };
+
+        if (conn.open) {
+          onHostConnOpen();
+        } else {
+          conn.on('open', onHostConnOpen);
+        }
       });
     }, (err) => {
       if (statusText) statusText.innerText = '⚠️ রুম তৈরিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।';
@@ -256,7 +262,8 @@ class EkkadokkaOnlineManager {
 
       this.conn.on('open', () => {
         this.setJoinStatus('সংযুক্ত হয়েছে! খেলা প্রস্তুত হচ্ছে... 🚀', '#2e7d32');
-        const myGender = this.game.playerGenders[1] || 'female';
+        const myGender = this.game.playerGenders[1] || this.game.playerGenders[0] || 'female';
+        this.game.playerGenders[1] = myGender;
         this.sendData({
           type: 'GUEST_JOINED',
           guestGender: myGender

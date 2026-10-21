@@ -113,15 +113,32 @@ class Ekkadokka3D {
 
   setCameraPosition(mode = 'iso') {
     this.cameraMode = mode;
+    const aspect = this.width / this.height;
+    const isMobilePortrait = aspect < 0.85;
+
     if (mode === 'iso') {
-      // আইসোমেট্রিক ভিউ (সুন্দর ৩ডি দৃশ্য ও সামনে খোলামেলা জায়গা)
-      this.camera.position.set(0, 16.5, 12.8);
-      this.camera.lookAt(0, 0, -0.4);
+      if (isMobilePortrait) {
+        // মোবাইল স্ক্রিনে পুরো কোর্ট ও ক্যারেক্টার সুন্দরভাবে দেখানোর জন্য
+        this.camera.fov = 54;
+        this.camera.position.set(0, 18.5, 14.5);
+        this.camera.lookAt(0, 0, 0.3);
+      } else {
+        this.camera.fov = 46;
+        this.camera.position.set(0, 16.5, 12.8);
+        this.camera.lookAt(0, 0, -0.4);
+      }
     } else {
       // টপ-ডাউন ভিউ
-      this.camera.position.set(0, 19.5, 0.01);
+      if (isMobilePortrait) {
+        this.camera.fov = 56;
+        this.camera.position.set(0, 22.0, 0.5);
+      } else {
+        this.camera.fov = 46;
+        this.camera.position.set(0, 19.5, 0.01);
+      }
       this.camera.lookAt(0, 0, 0);
     }
+    this.camera.updateProjectionMatrix();
   }
 
   toggleCamera() {
@@ -642,7 +659,7 @@ class Ekkadokka3D {
       this.width = this.container.clientWidth || window.innerWidth;
       this.height = this.container.clientHeight || window.innerHeight;
       this.camera.aspect = this.width / this.height;
-      this.camera.updateProjectionMatrix();
+      this.setCameraPosition(this.cameraMode);
       this.renderer.setSize(this.width, this.height);
     });
   }
@@ -836,18 +853,8 @@ class Ekkadokka3D {
       return;
     }
 
-    // ২. পা দাগে লেগেছে কিনা
-    const lineCol = this.checkLineCollision3D(clickX, clickZ, 0.22);
-    if (lineCol.touched) {
-      this.highlightTouchedLine(lineCol.lineId);
-      this.triggerFoul('দাগে পা লেগেছে! (নিয়ম ৩ ও ৫ অনুযায়ী ফাউল)');
-      return;
-    }
-
-    // ৩. কোন ঘরে পা রাখা হয়েছে
-    const clickedBox = this.getBoxAt3D(clickX, clickZ);
-    const isBaselineClick = clickZ >= this.rect6BotZ + 0.2;
-
+    // ২. রিটার্ন হপে বেসলাইনে ফেরা (দাগের চেকের আগেই পরীক্ষা করা যেন ফলস ফাউল না হয়)
+    const isBaselineClick = clickZ >= (this.rect6BotZ - 0.1);
     if (this.state === 'RETURN_HOP' && isBaselineClick) {
       this.hopPlayerTo3D(0, this.baselineZ, 0, () => {
         this.completeRoundSuccess();
@@ -855,15 +862,25 @@ class Ekkadokka3D {
       return;
     }
 
+    // ৩. পা দাগে লেগেছে কিনা
+    const lineCol = this.checkLineCollision3D(clickX, clickZ, 0.22);
+    if (lineCol.touched) {
+      this.highlightTouchedLine(lineCol.lineId);
+      this.triggerFoul('দাগে পা লেগেছে! (নিয়ম ৩ ও ৫ অনুযায়ী ফাউল)');
+      return;
+    }
+
+    // ৪. কোন ঘরে পা রাখা হয়েছে
+    const clickedBox = this.getBoxAt3D(clickX, clickZ);
     if (!clickedBox) return;
 
-    // ৪. চাড়ার ঘরে পা দেওয়া নিষেধ
+    // ৫. চাড়ার ঘরে পা দেওয়া নিষেধ
     if (this.state === 'HOPPING' && clickedBox === this.charaState.boxNum) {
       this.triggerFoul('চাড়ার ঘরে পা দেওয়া নিষেধ! চাড়ার ঘর বাদ দিয়ে লাফান।');
       return;
     }
 
-    // ৫. বৈধ ঘরে লাফ
+    // ৬. বৈধ ঘরে লাফ
     const validMoves = this.getValidNextMoves();
     if (!validMoves.includes(clickedBox)) {
       this.triggerFoul('ভুল ঘরে ঝাঁপ! নিয়ম অনুযায়ী ধারাবাহিকভাবে লাফ দিন।');
@@ -895,7 +912,7 @@ class Ekkadokka3D {
     if (!cBox) return false;
     const currBox = this.playerCurrentBox || 0;
     const adjMap = {
-      1: [4, 2], 2: [1, 3], 3: [4, 2], 4: [5, 1, 3], 5: [6, 4], 6: [0, 5]
+      1: [4, 2], 2: [1, 3], 3: [4, 2], 4: [5, 1, 3], 5: [6, 4], 6: [5]
     };
     return adjMap[cBox]?.includes(currBox) || false;
   }
@@ -927,8 +944,9 @@ class Ekkadokka3D {
       if (curr === 2) return [1, 3];
       if (curr === 1 || curr === 3) return [4];
       if (curr === 4) return [5];
-      if (curr === 5) return [6];
+      if (curr === 5) return [6, 0];
       if (curr === 6) return [0]; // বেসলাইন
+      if (curr === 0) return [0];
     }
     return [];
   }
@@ -961,16 +979,22 @@ class Ekkadokka3D {
   }
 
   // চাড়ায় লাথি দেওয়া বা বাইরে পাঠানো ৩ডি
-  executeCharaKick3D(isRemote = false) {
+  executeCharaKick3D(targetX = null, targetZ = null, isRemote = false) {
+    if (this.charaState.isSliding) return;
+
+    const kickX = (typeof targetX === 'number') ? targetX : (Math.random() - 0.5) * 1.5;
+    const kickZ = (typeof targetZ === 'number') ? targetZ : (this.baselineZ + 0.5);
+
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
-      this.onOnlineAction({ type: 'KICK' });
+      this.onOnlineAction({ type: 'KICK', targetX: kickX, targetZ: kickZ });
     }
     window.soundEngine.playCharaKick();
     this.charaState.isSliding = true;
-    this.charaState.target.set((Math.random() - 0.5) * 1.5, 0.06, this.baselineZ + 0.5);
+    this.charaState.target.set(kickX, 0.06, kickZ);
 
     setTimeout(() => {
       this.state = 'RETURN_HOP';
+      this.charaState.isSliding = false;
       this.charaState.boxNum = null;
       window.soundEngine.playSuccess();
       this.setMessage('চাড়া বাইরে এসেছে! (নিয়ম ৪ সম্পন্ন)', 'এবার লাফিয়ে নিরাপদে বাইরে চলে আসুন');
@@ -1061,7 +1085,17 @@ class Ekkadokka3D {
     const desc = document.getElementById('winner-desc');
 
     if (title) title.innerText = `🏆 ${winnerName} ৫০ পয়েন্টে চ্যাম্পিয়ন! 🏆`;
-    if (desc) desc.innerText = `অভিনন্দন! আপনি ৫০ পয়েন্ট লক্ষ্য অর্জন করে এক্কাদোক্কার ম্যাচ জয় করেছেন!`;
+    if (desc) {
+      if (this.mode === 'online') {
+        if (this.activePlayerIdx === this.myPlayerIdx) {
+          desc.innerText = `অভিনন্দন! আপনি ৫০ পয়েন্ট লক্ষ্য অর্জন করে ম্যাচ জয় করেছেন! 🥇`;
+        } else {
+          desc.innerText = `খেলা শেষ! আপনার বন্ধু ${winnerName} ৫০ পয়েন্ট পেয়ে জয়ী হয়েছেন! ভালো খেলেছেন!`;
+        }
+      } else {
+        desc.innerText = `অভিনন্দন! ${winnerName} ৫০ পয়েন্ট লক্ষ্য অর্জন করে এক্কাদোক্কার ম্যাচ জয় করেছেন!`;
+      }
+    }
     if (modal) modal.style.display = 'flex';
 
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
@@ -1214,6 +1248,33 @@ class Ekkadokka3D {
     this.startTurn();
   }
 
+  // খেলা সম্পূর্ণ রিসেট করে মেনু/বেসলাইনে ফেরত নেওয়া
+  resetGame() {
+    if (this.foulTimeout) {
+      clearTimeout(this.foulTimeout);
+      this.foulTimeout = null;
+    }
+    this.state = 'MENU';
+    this.playerCurrentBox = 0;
+    this.isDragging = false;
+    this.charaState.isAirborne = false;
+    this.charaState.isSliding = false;
+    this.charaState.flightProgress = 0;
+    this.hopState.isHopping = false;
+    this.hopState.progress = 0;
+    this.onHopComplete = null;
+    if (this.targetRing) this.targetRing.visible = false;
+    if (this.trajectoryLine) this.trajectoryLine.visible = false;
+
+    // অবস্থান বেসলাইনে রিসেট
+    this.playerGroup.position.set(-0.7, 0, this.baselineZ);
+    this.charaGroup.position.set(0.6, 0.06, this.baselineZ);
+    this.charaState.boxNum = null;
+
+    this.setMessage('খেলা শুরু করতে মোড নির্বাচন করুন', 'এক্কাদোক্কা ৩ডি-তে আপনাকে স্বাগতম!');
+    this.updateHUD();
+  }
+
   // রিমোট অনলাইন অ্যাকশন হ্যান্ডলিং
   handleRemoteOnlineAction(action) {
     if (!action || !action.type) return;
@@ -1249,7 +1310,7 @@ class Ekkadokka3D {
         break;
 
       case 'KICK':
-        this.executeCharaKick3D(true);
+        this.executeCharaKick3D(action.targetX, action.targetZ, true);
         break;
 
       case 'FOUL':
@@ -1397,13 +1458,29 @@ class Ekkadokka3D {
     const isHuman = !this.isAI[this.activePlayerIdx] && (this.mode !== 'online' || this.isMyTurn());
     if (throwBtn) throwBtn.style.display = (this.state === 'THROW_AIM' && isHuman) ? 'inline-flex' : 'none';
     if (kickBtn) kickBtn.style.display = (this.state === 'HOPPING' && this.isAdjacentToChara() && isHuman) ? 'inline-flex' : 'none';
-    if (hopBtn) hopBtn.style.display = ((this.state === 'HOPPING' || this.state === 'RETURN_HOP') && isHuman) ? 'inline-flex' : 'none';
+    if (hopBtn) {
+      const showHop = (this.state === 'HOPPING' || this.state === 'RETURN_HOP') && isHuman;
+      hopBtn.style.display = showHop ? 'inline-flex' : 'none';
+      if (showHop) {
+        if (this.state === 'RETURN_HOP') {
+          const valid = this.getValidNextMoves();
+          if (valid.includes(0)) {
+            hopBtn.innerHTML = '<span>🦵</span> কোর্টের বাইরে লাফাও';
+          } else {
+            hopBtn.innerHTML = '<span>🦵</span> পিছনের ঘরে লাফাও';
+          }
+        } else {
+          hopBtn.innerHTML = '<span>🦵</span> সামনের ঘরে লাফাও';
+        }
+      }
+    }
   }
 
   // মূল ৩ডি অ্যানিমেশন লুপ
   animate() {
     requestAnimationFrame(this.animate);
-    const dt = this.clock.getDelta();
+    const rawDt = this.clock.getDelta();
+    const dt = Math.min(rawDt, 0.1);
 
     // ১. চাড়ার ৩ডি ফ্লাইট ফিজিক্স
     if (this.charaState.isAirborne) {

@@ -373,6 +373,7 @@
     // রিস্টার্ট
     document.getElementById('btn-restart').addEventListener('click', () => {
       window.soundEngine.playClick();
+      game.resetGame();
       modeModal.style.display = 'flex';
       onlineMgr.cleanup();
       const emojiBar = document.getElementById('online-reactions-bar');
@@ -381,6 +382,7 @@
 
     document.getElementById('btn-winner-restart').addEventListener('click', () => {
       window.soundEngine.playClick();
+      game.resetGame();
       document.getElementById('winner-modal').style.display = 'none';
       modeModal.style.display = 'flex';
       onlineMgr.cleanup();
