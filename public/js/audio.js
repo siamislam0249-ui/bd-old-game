@@ -282,6 +282,11 @@ class SoundEngine {
     });
   }
 
+  // রাউন্ড জয়ের সুর (সফল চাল সম্পন্ন)
+  playRoundWin() {
+    this.playSuccess();
+  }
+
   // পূর্ণ বিজয় উদযাপন সুর (বাংলাদেশী লোক উৎসবের আনন্দের সুর)
   playVictory() {
     if (this.muted) return;

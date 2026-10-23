@@ -67,16 +67,29 @@ class EkkadokkaOnlineManager {
 
     // রুমে যোগ দিন বাটন
     const btnConnect = document.getElementById('btn-connect-room');
+    const pinInput = document.getElementById('input-join-pin');
+
+    const handleJoin = () => {
+      window.soundEngine?.playClick();
+      const rawPin = pinInput ? pinInput.value : '';
+      const pin = this.normalizePin(rawPin);
+      if (pin.length < 4) {
+        this.setJoinStatus('⚠️ সঠিক ৪ ডিজিটের পিন লিখুন!', '#d32f2f');
+        return;
+      }
+      this.joinGuestRoom(pin);
+    };
+
     if (btnConnect) {
-      btnConnect.addEventListener('click', () => {
-        window.soundEngine?.playClick();
-        const pinInput = document.getElementById('input-join-pin');
-        const pin = pinInput ? pinInput.value.trim() : '';
-        if (pin.length < 4) {
-          this.setJoinStatus('⚠️ সঠিক ৪ ডিজিটের পিন লিখুন!', '#d32f2f');
-          return;
+      btnConnect.addEventListener('click', handleJoin);
+    }
+
+    if (pinInput) {
+      pinInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleJoin();
         }
-        this.joinGuestRoom(pin);
       });
     }
 
@@ -175,14 +188,22 @@ class EkkadokkaOnlineManager {
 
           const pinInput = document.getElementById('input-join-pin');
           if (pinInput) {
-            pinInput.value = roomParam;
-            this.setJoinStatus(`ইনভাইট পিন ${roomParam} পাওয়া গেছে! 'যোগ দিন' চাপুন।`, '#2e7d32');
+            const cleanRoom = this.normalizePin(roomParam);
+            pinInput.value = cleanRoom;
+            this.setJoinStatus(`ইনভাইট পিন ${cleanRoom} পাওয়া গেছে! 'যোগ দিন' চাপুন।`, '#2e7d32');
           }
         }, 500);
       }
     } catch (e) {
       console.warn('URL param parse error:', e);
     }
+  }
+
+  // পিন নরমালাইজ (বাংলা সংখ্যা ইংরেজি সংখ্যায় রূপান্তর ও ট্রিম)
+  normalizePin(pin) {
+    if (!pin) return '';
+    const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+    return String(pin).trim().replace(/[০-৯]/g, d => bnDigits.indexOf(d));
   }
 
   // ৪ ডিজিট পিন তৈরি
@@ -238,6 +259,11 @@ class EkkadokkaOnlineManager {
         }
       });
     }, (err) => {
+      if (err && err.type === 'unavailable-id') {
+        // পিন অলরেডি ব্যবহৃত থাকলে স্বয়ংক্রিয়ভাবে নতুন পিন তৈরি
+        this.createHostRoom();
+        return;
+      }
       if (statusText) statusText.innerText = '⚠️ রুম তৈরিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।';
       console.error('Peer host error:', err);
     });
@@ -421,6 +447,7 @@ class EkkadokkaOnlineManager {
 
     // রিসেট
     this.cleanup();
+    this.game.resetGame();
     document.getElementById('mode-modal').style.display = 'flex';
     const emojiBar = document.getElementById('online-reactions-bar');
     if (emojiBar) emojiBar.style.display = 'none';

@@ -538,21 +538,23 @@ class Ekkadokka3D {
   }
 
   toggleActivePlayerGender() {
-    const curr = this.playerGenders[this.activePlayerIdx] || 'male';
+    const targetIdx = (this.mode === 'online') ? this.myPlayerIdx : this.activePlayerIdx;
+    const curr = this.playerGenders[targetIdx] || 'male';
     const next = curr === 'male' ? 'female' : 'male';
-    this.setPlayerGender(this.activePlayerIdx, next);
+    this.setPlayerGender(targetIdx, next);
     if (this.mode === 'online' && this.onOnlineAction) {
-      this.onOnlineAction({ type: 'CHAR_CHANGE', playerIdx: this.myPlayerIdx, gender: next });
+      this.onOnlineAction({ type: 'CHAR_CHANGE', playerIdx: targetIdx, gender: next });
     }
     return next;
   }
 
   updateCharacterUI() {
-    const curr = this.playerGenders[this.activePlayerIdx] || 'male';
+    const targetIdx = (this.mode === 'online') ? this.myPlayerIdx : this.activePlayerIdx;
+    const curr = this.playerGenders[targetIdx] || 'male';
     const btn = document.getElementById('btn-character');
     if (btn) {
       btn.innerText = curr === 'female' ? '👧' : '👦';
-      btn.title = `বর্তমান চরিত্র: ${curr === 'female' ? 'মেয়ে' : 'ছেলে'} (ক্লিক করে পরিবর্তন করুন)`;
+      btn.title = `আপনার চরিত্র: ${curr === 'female' ? 'মেয়ে' : 'ছেলে'} (ক্লিক করে পরিবর্তন করুন)`;
     }
   }
 
@@ -691,7 +693,9 @@ class Ekkadokka3D {
     const hoveredBox = this.getBoxAt3D(end.x, end.z);
     const lineCol = this.checkLineCollision3D(end.x, end.z, 0.35);
 
-    if (lineCol.touched) {
+    if (this.mode === 'online' && !this.isMyTurn()) {
+      this.setSubMessage('বন্ধু লক্ষ্য ঘরে নিশানা করছে...');
+    } else if (lineCol.touched) {
       this.targetRingMat.color.setHex(0xe53935); // লাল (দাগ)
       this.setSubMessage('সতর্কতা: চাড়া দাগে লাগবে!');
     } else if (hoveredBox === targetBoxNum) {
@@ -856,15 +860,21 @@ class Ekkadokka3D {
     // ২. রিটার্ন হপে বেসলাইনে ফেরা (দাগের চেকের আগেই পরীক্ষা করা যেন ফলস ফাউল না হয়)
     const isBaselineClick = clickZ >= (this.rect6BotZ - 0.1);
     if (this.state === 'RETURN_HOP' && isBaselineClick) {
-      this.hopPlayerTo3D(0, this.baselineZ, 0, () => {
-        this.completeRoundSuccess();
-      });
+      const validMoves = this.getValidNextMoves();
+      if (validMoves.includes(0)) {
+        this.hopPlayerTo3D(0, this.baselineZ, 0, () => {
+          this.completeRoundSuccess();
+        });
+      } else {
+        this.triggerFoul('আগে পিছনের ঘরগুলো ধারাবাহিকভাবে পার হয়ে আসুন!');
+      }
       return;
     }
 
     // ৩. পা দাগে লেগেছে কিনা
     const lineCol = this.checkLineCollision3D(clickX, clickZ, 0.22);
     if (lineCol.touched) {
+      this.lastTouchedLineId = lineCol.lineId;
       this.highlightTouchedLine(lineCol.lineId);
       this.triggerFoul('দাগে পা লেগেছে! (নিয়ম ৩ ও ৫ অনুযায়ী ফাউল)');
       return;
@@ -932,8 +942,12 @@ class Ekkadokka3D {
         if (cBox !== 2) m.push(2);
         return m;
       }
-      if (curr === 1) return cBox !== 2 ? [4, 2] : [4];
-      if (curr === 3) return cBox !== 2 ? [4, 2] : [4];
+      if (curr === 1 || curr === 3) {
+        const m = [];
+        if (cBox !== 2) m.push(2);
+        if (cBox !== 4) m.push(4);
+        return m;
+      }
       if (curr === 2) {
         const m = [];
         if (cBox !== 1) m.push(1);
@@ -941,7 +955,7 @@ class Ekkadokka3D {
         return m;
       }
     } else if (this.state === 'RETURN_HOP') {
-      if (curr === 2) return [1, 3];
+      if (curr === 2) return [1, 3, 4];
       if (curr === 1 || curr === 3) return [4];
       if (curr === 4) return [5];
       if (curr === 5) return [6, 0];
@@ -956,12 +970,20 @@ class Ekkadokka3D {
 
     if (this.state === 'HOPPING') {
       if (this.isAdjacentToChara()) {
-        this.setMessage('আপনি চাড়ার কাছে পৌঁছেছেন!', 'চাড়ায় ট্যাপ করে কোর্টের বাইরে পাঠান!');
+        if (this.mode === 'online' && !this.isMyTurn()) {
+          this.setMessage('বন্ধু চাড়ার কাছে পৌঁছেছে!', 'বন্ধুর কিক দেখার অপেক্ষায়...');
+        } else {
+          this.setMessage('আপনি চাড়ার কাছে পৌঁছেছেন!', 'চাড়ায় ট্যাপ করে কোর্টের বাইরে পাঠান!');
+        }
         if (this.isAI[this.activePlayerIdx]) {
           setTimeout(() => this.executeCharaKick3D(), 900);
         }
       } else {
-        this.setMessage('সুন্দর লাফ!', 'পরবর্তী ঘরে এক পায়ে লাফিয়ে চলুন...');
+        if (this.mode === 'online' && !this.isMyTurn()) {
+          this.setMessage('বন্ধুর সুন্দর লাফ!', 'বন্ধু পরবর্তী ঘরে লাফিয়ে যাচ্ছে...');
+        } else {
+          this.setMessage('সুন্দর লাফ!', 'পরবর্তী ঘরে এক পায়ে লাফিয়ে চলুন...');
+        }
         if (this.isAI[this.activePlayerIdx]) {
           this.scheduleAIHop3D();
         }
@@ -970,7 +992,11 @@ class Ekkadokka3D {
       if (this.playerCurrentBox === 0) {
         this.completeRoundSuccess();
       } else {
-        this.setMessage('ফিরে আসছেন...', 'লাফিয়ে কোর্টের বাইরে বেসলাইনে আসুন');
+        if (this.mode === 'online' && !this.isMyTurn()) {
+          this.setMessage('বন্ধু ফিরে আসছে...', 'বন্ধু লাফিয়ে বেসলাইনে আসছে...');
+        } else {
+          this.setMessage('ফিরে আসছেন...', 'লাফিয়ে কোর্টের বাইরে বেসলাইনে আসুন');
+        }
         if (this.isAI[this.activePlayerIdx]) {
           this.scheduleAIReturnHop3D();
         }
@@ -997,7 +1023,11 @@ class Ekkadokka3D {
       this.charaState.isSliding = false;
       this.charaState.boxNum = null;
       window.soundEngine.playSuccess();
-      this.setMessage('চাড়া বাইরে এসেছে! (নিয়ম ৪ সম্পন্ন)', 'এবার লাফিয়ে নিরাপদে বাইরে চলে আসুন');
+      if (this.mode === 'online' && !this.isMyTurn()) {
+        this.setMessage('চাড়া বাইরে এসেছে! (নিয়ম ৪ সম্পন্ন)', 'বন্ধু এবার লাফিয়ে নিরাপদে বাইরে আসবে');
+      } else {
+        this.setMessage('চাড়া বাইরে এসেছে! (নিয়ম ৪ সম্পন্ন)', 'এবার লাফিয়ে নিরাপদে বাইরে চলে আসুন');
+      }
       this.updateHUD();
 
       if (this.isAI[this.activePlayerIdx]) {
@@ -1103,15 +1133,17 @@ class Ekkadokka3D {
     }
   }
 
-  triggerFoul(reason, isRemote = false) {
+  triggerFoul(reason, isRemote = false, lineId = null) {
     // অনলাইন মোডে শুধুমাত্র সক্রিয় খেলোয়াড় লোকাল ফাউল শুরু করতে পারে
     if (this.mode === 'online' && !isRemote && !this.isMyTurn()) {
       return;
     }
 
+    const touchedLine = lineId || this.lastTouchedLineId;
     if (this.mode === 'online' && !isRemote && this.isMyTurn() && this.onOnlineAction) {
-      this.onOnlineAction({ type: 'FOUL', reason: reason });
+      this.onOnlineAction({ type: 'FOUL', reason: reason, lineId: touchedLine });
     }
+    this.lastTouchedLineId = null;
 
     this.state = 'FOUL_PAUSE';
     this.currentStreak = 0; // ফাউল হলে স্ট্রিক ০ হয়
@@ -1314,7 +1346,8 @@ class Ekkadokka3D {
         break;
 
       case 'FOUL':
-        this.triggerFoul(action.reason, true);
+        if (action.lineId) this.highlightTouchedLine(action.lineId);
+        this.triggerFoul(action.reason, true, action.lineId);
         break;
 
       case 'TURN_SWITCH':
@@ -1342,14 +1375,24 @@ class Ekkadokka3D {
         break;
 
       case 'ROUND_WIN':
+        this.state = 'ROUND_SUCCESS';
         if (action.scores) this.scores = action.scores;
         if (action.targets) this.playerTargets = action.targets;
         this.currentStreak = action.streak || 0;
-        window.soundEngine.playRoundWin();
+        const pName = this.playerNames[this.activePlayerIdx];
+        if (this.currentStreak >= this.maxStreak) {
+          this.setMessage(`চমৎকার! ${pName}-এর একটানা ৫টি চাল পূর্ণ হয়েছে!`, 'রোলিং নিয়ম অনুযায়ী এবার পালা পরিবর্তন হচ্ছে...');
+        } else {
+          this.setMessage(`দারুণ! ${pName} সফল চাল সম্পন্ন করেছেন (+১০ পঃ)`, `চাল: ${this.currentStreak}/${this.maxStreak} • স্কোর: ${this.scores[this.activePlayerIdx]}/${this.targetScore}`);
+        }
+        window.soundEngine.playRoundWin?.() || window.soundEngine.playSuccess();
         this.updateHUD();
         break;
 
       case 'MATCH_WIN':
+        if (typeof action.winnerIdx === 'number') {
+          this.activePlayerIdx = action.winnerIdx;
+        }
         this.triggerMatchWin(true);
         break;
 
@@ -1464,7 +1507,7 @@ class Ekkadokka3D {
       if (showHop) {
         if (this.state === 'RETURN_HOP') {
           const valid = this.getValidNextMoves();
-          if (valid.includes(0)) {
+          if (valid.length === 1 && valid[0] === 0) {
             hopBtn.innerHTML = '<span>🦵</span> কোর্টের বাইরে লাফাও';
           } else {
             hopBtn.innerHTML = '<span>🦵</span> পিছনের ঘরে লাফাও';

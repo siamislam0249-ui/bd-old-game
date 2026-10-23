@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=/public/">
-  <script>window.location.replace('/public/');</script>
+  <script>
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    window.location.replace('/public/' + search + hash);
+  </script>
   <title>এক্কাদোক্কা 3D (Ekkadokka 3D)</title>
   <style>
     body {
